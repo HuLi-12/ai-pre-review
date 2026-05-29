@@ -41,12 +41,13 @@
     <div class="col-lg-3 mb-3">
         <div class="card shadow-sm border-0">
             <div class="card-header bg-white">
-                <h6 class="mb-0"><i class="bi bi-files"></i> 变更文件</h6>
+                <h6 class="mb-0"><i class="bi bi-files"></i> 变更文件 <span class="badge bg-secondary">{{ files|length }}</span></h6>
             </div>
             <div class="card-body p-0">
                 <div class="list-group list-group-flush" style="max-height: 500px; overflow-y: auto;">
                     {% for file in files %}
-                    <a href="#" class="list-group-item list-group-item-action file-item" data-file-id="{{ file.id }}">
+                    {% set file_finding_count = findings|selectattr("file_path", "equalto", file.file_path)|list|length %}
+                    <a href="#" class="list-group-item list-group-item-action file-item" data-file-id="{{ file.id }}" data-file-path="{{ file.file_path }}">
                         <div class="d-flex w-100 justify-content-between align-items-center">
                             <small class="text-truncate" style="max-width: 150px;">{{ file.file_path.split('/')[-1] }}</small>
                             {% if file.risk_level == 'HIGH' %}
@@ -60,7 +61,9 @@
                             {% endif %}
                         </div>
                         <small class="text-muted text-truncate d-block" style="max-width: 200px;">{{ file.file_path }}</small>
-                        <small class="text-muted">+{{ file.additions }}/-{{ file.deletions }}</small>
+                        <small class="text-muted">+{{ file.additions }}/-{{ file.deletions }}
+                            {% if file_finding_count %}<span class="badge bg-danger ms-1">{{ file_finding_count }}个问题</span>{% endif %}
+                        </small>
                     </a>
                     {% else %}
                     <div class="list-group-item text-muted">暂无文件信息</div>
@@ -68,104 +71,19 @@
                 </div>
             </div>
         </div>
-    </div>
 
-    <div class="col-lg-6 mb-3">
-        <div class="card shadow-sm border-0">
-            <div class="card-header bg-white d-flex justify-content-between align-items-center">
-                <h6 class="mb-0"><i class="bi bi-chat-dots"></i> Review 结果</h6>
-                <div class="btn-group btn-group-sm">
-                    <button class="btn btn-outline-secondary filter-btn active" data-severity="all">全部</button>
-                    <button class="btn btn-outline-danger filter-btn" data-severity="critical">严重</button>
-                    <button class="btn btn-outline-warning filter-btn" data-severity="high">高</button>
-                    <button class="btn btn-outline-info filter-btn" data-severity="medium">中</button>
-                    <button class="btn btn-outline-secondary filter-btn" data-severity="low">低</button>
-                </div>
-            </div>
-            <div class="card-body" style="max-height: 600px; overflow-y: auto;">
-                {% if summary %}
-                <div class="mb-4 p-3 bg-light rounded">
-                    <h6>PR 摘要</h6>
-                    <p class="mb-0">{{ summary }}</p>
-                </div>
-                {% endif %}
-
-                <div class="mb-2">
-                    <label class="form-check form-check-inline">
-                        <input class="form-check-input" type="checkbox" id="hideLowConf" checked>
-                        <span class="form-check-label">隐藏低置信度 (&lt; 0.6)</span>
-                    </label>
-                </div>
-                <div id="findingsList">
-                    {% if findings %}
-                        {% for f in findings %}
-                        <div class="finding-item {{ f.severity }} p-3 mb-2 rounded border"
-                             data-severity="{{ f.severity }}"
-                             data-confidence="{{ f.confidence or 0 }}">
-                            <div class="d-flex justify-content-between align-items-start">
-                                <h6 class="mb-1">
-                                    <span class="badge badge-{{ f.severity }} me-1">{{ f.severity }}</span>
-                                    {{ f.title }}
-                                </h6>
-                                <small class="text-muted">
-                                    置信度: {{ (f.confidence * 100)|int if f.confidence else 0 }}%
-                                    {% if (f.confidence or 0) >= 0.8 %}
-                                        <span class="badge bg-success">高可信</span>
-                                    {% elif (f.confidence or 0) >= 0.6 %}
-                                        <span class="badge bg-warning text-dark">中</span>
-                                    {% else %}
-                                        <span class="badge bg-secondary">低</span>
-                                    {% endif %}
-                                </small>
-                            </div>
-                            <p class="mb-1 small">
-                                <code>{{ f.file_path }}</code>{% if f.line_number %}:{{ f.line_number }}{% endif %}
-                            </p>
-                            {% if f.reason %}
-                            <p class="mb-1 small text-muted">{{ f.reason }}</p>
-                            {% endif %}
-                            {% if f.suggestion %}
-                            <div class="p-2 bg-light rounded small mt-1">
-                                <strong>建议:</strong> {{ f.suggestion }}
-                            </div>
-                            {% endif %}
-                            <div class="mt-2">
-                                <button class="btn btn-sm btn-outline-success feedback-btn"
-                                        data-finding-id="{{ f.id }}" data-type="EFFECTIVE">
-                                    <i class="bi bi-check-circle"></i> 有效
-                                </button>
-                                <button class="btn btn-sm btn-outline-warning feedback-btn"
-                                        data-finding-id="{{ f.id }}" data-type="FALSE_POSITIVE">
-                                    <i class="bi bi-x-circle"></i> 误报
-                                </button>
-                                <button class="btn btn-sm btn-outline-secondary feedback-btn"
-                                        data-finding-id="{{ f.id }}" data-type="RESOLVED">
-                                    <i class="bi bi-check2"></i> 已处理
-                                </button>
-                            </div>
-                        </div>
-                        {% endfor %}
-                    {% else %}
-                    <p class="text-muted text-center py-4">暂无评审发现</p>
-                    {% endif %}
-                </div>
-            </div>
-        </div>
-    </div>
-
-    <div class="col-lg-3 mb-3">
-        <div class="card shadow-sm border-0 mb-3">
+        <div class="card shadow-sm border-0 mt-3">
             <div class="card-header bg-white">
                 <h6 class="mb-0"><i class="bi bi-pie-chart"></i> 概览</h6>
             </div>
             <div class="card-body">
                 <div class="d-flex justify-content-between mb-2">
-                    <span>🔴 严重: <strong class="severity-critical">{{ counts.critical }}</strong></span>
-                    <span>🟠 高: <strong class="severity-high">{{ counts.high }}</strong></span>
+                    <span>🔴 严重: <strong class="severity-critical" id="count-critical">{{ counts.critical }}</strong></span>
+                    <span>🟠 高: <strong class="severity-high" id="count-high">{{ counts.high }}</strong></span>
                 </div>
                 <div class="d-flex justify-content-between mb-2">
-                    <span>🟡 中: <strong class="severity-medium">{{ counts.medium }}</strong></span>
-                    <span>⚪ 低: <strong class="severity-low">{{ counts.low }}</strong></span>
+                    <span>🟡 中: <strong class="severity-medium" id="count-medium">{{ counts.medium }}</strong></span>
+                    <span>⚪ 低: <strong class="severity-low" id="count-low">{{ counts.low }}</strong></span>
                 </div>
                 <hr>
                 <p class="mb-1"><strong>合并建议:</strong></p>
@@ -173,7 +91,7 @@
             </div>
         </div>
 
-        <div class="card shadow-sm border-0">
+        <div class="card shadow-sm border-0 mt-3">
             <div class="card-header bg-white">
                 <h6 class="mb-0"><i class="bi bi-lightbulb"></i> 重点关注</h6>
             </div>
@@ -190,36 +108,248 @@
             </div>
         </div>
     </div>
+
+    <div class="col-lg-9 mb-3">
+        <div class="card shadow-sm border-0">
+            <div class="card-header bg-white d-flex justify-content-between align-items-center flex-wrap gap-2">
+                <h6 class="mb-0"><i class="bi bi-chat-dots"></i> Review 结果 <span class="badge bg-secondary" id="visibleCount">{{ findings|length }}</span></h6>
+                <div class="d-flex align-items-center gap-2">
+                    <div class="btn-group btn-group-sm">
+                        <button class="btn btn-outline-secondary filter-btn active" data-severity="all">全部</button>
+                        <button class="btn btn-outline-danger filter-btn" data-severity="critical">严重</button>
+                        <button class="btn btn-outline-warning filter-btn" data-severity="high">高</button>
+                        <button class="btn btn-outline-info filter-btn" data-severity="medium">中</button>
+                        <button class="btn btn-outline-secondary filter-btn" data-severity="low">低</button>
+                    </div>
+                    <div class="form-check form-check-inline mb-0">
+                        <input class="form-check-input" type="checkbox" id="hideLowConf" checked>
+                        <label class="form-check-label small" for="hideLowConf">隐藏低置信度 (&lt; 0.6)</label>
+                    </div>
+                    <button class="btn btn-outline-secondary btn-sm" id="expandAllBtn" title="展开全部">
+                        <i class="bi bi-arrows-expand"></i>
+                    </button>
+                    <button class="btn btn-outline-secondary btn-sm" id="collapseAllBtn" title="折叠全部">
+                        <i class="bi bi-arrows-collapse"></i>
+                    </button>
+                </div>
+            </div>
+            <div class="card-body" style="max-height: 700px; overflow-y: auto;">
+                {% if summary %}
+                <div class="mb-4 p-3 bg-light rounded">
+                    <h6>PR 摘要</h6>
+                    <p class="mb-0">{{ summary }}</p>
+                </div>
+                {% endif %}
+
+                <div id="findingsList">
+                    {% if findings %}
+                        {% set severities = [("critical", "严重"), ("high", "高"), ("medium", "中"), ("low", "低")] %}
+                        {% for sev_key, sev_label in severities %}
+                        {% set sev_findings = findings|selectattr("severity", "equalto", sev_key)|list %}
+                        {% if sev_findings %}
+                        <div class="mb-3 severity-group" data-severity="{{ sev_key }}">
+                            <div class="d-flex justify-content-between align-items-center severity-header py-2 px-3 rounded"
+                                 style="cursor:pointer; background: {% if sev_key == 'critical' %}#fce4e4{% elif sev_key == 'high' %}#fff3e0{% elif sev_key == 'medium' %}#fffde7{% else %}#f5f5f5{% endif %};"
+                                 data-bs-toggle="collapse" data-bs-target="#collapse-{{ sev_key }}">
+                                <span>
+                                    <strong>{{ sev_label }}</strong>
+                                    <span class="badge {% if sev_key == 'critical' %}bg-danger{% elif sev_key == 'high' %}bg-warning text-dark{% elif sev_key == 'medium' %}bg-info text-dark{% else %}bg-secondary{% endif %} ms-1">{{ sev_findings|length }}</span>
+                                </span>
+                                <i class="bi bi-chevron-down collapse-icon"></i>
+                            </div>
+                            <div class="collapse show" id="collapse-{{ sev_key }}">
+                                {% for f in sev_findings %}
+                                <div class="finding-item {{ f.severity }} p-3 mb-2 mt-2 rounded border finding-card"
+                                     data-severity="{{ f.severity }}"
+                                     data-confidence="{{ f.confidence or 0 }}"
+                                     data-file-path="{{ f.file_path }}"
+                                     data-finding-id="{{ f.id }}">
+                                    <div class="d-flex justify-content-between align-items-start">
+                                        <h6 class="mb-1">
+                                            <span class="badge badge-{{ f.severity }} me-1">{{ f.severity }}</span>
+                                            {{ f.title }}
+                                            {% if f.finding_type %}
+                                            <small class="text-muted">[{{ f.finding_type }}]</small>
+                                            {% endif %}
+                                        </h6>
+                                        <div class="d-flex align-items-center gap-2">
+                                            <small class="text-muted">
+                                                置信度: {{ (f.confidence * 100)|int if f.confidence else 0 }}%
+                                                {% if (f.confidence or 0) >= 0.8 %}
+                                                    <span class="badge bg-success">高可信</span>
+                                                {% elif (f.confidence or 0) >= 0.6 %}
+                                                    <span class="badge bg-warning text-dark">中</span>
+                                                {% else %}
+                                                    <span class="badge bg-secondary">低</span>
+                                                {% endif %}
+                                            </small>
+                                        </div>
+                                    </div>
+                                    <p class="mb-1 small">
+                                        <code class="file-path-label" data-file="{{ f.file_path }}">{{ f.file_path }}</code>{% if f.line_number %}:<strong>{{ f.line_number }}</strong>{% endif %}
+                                    </p>
+                                    {% if f.reason %}
+                                    <p class="mb-1 small text-muted reason-text">{{ f.reason }}</p>
+                                    {% endif %}
+                                    {% if f.suggestion %}
+                                    <div class="p-2 bg-light rounded small mt-1 suggestion-block d-flex justify-content-between align-items-start">
+                                        <div class="flex-grow-1">
+                                            <strong>建议:</strong> {{ f.suggestion }}
+                                        </div>
+                                        <button class="btn btn-sm btn-outline-secondary ms-2 copy-btn" title="复制建议" data-text="{{ f.suggestion }}">
+                                            <i class="bi bi-clipboard"></i>
+                                        </button>
+                                    </div>
+                                    {% endif %}
+                                    <div class="mt-2">
+                                        <button class="btn btn-sm btn-outline-success feedback-btn"
+                                                data-finding-id="{{ f.id }}" data-type="EFFECTIVE">
+                                            <i class="bi bi-check-circle"></i> 有效
+                                        </button>
+                                        <button class="btn btn-sm btn-outline-warning feedback-btn"
+                                                data-finding-id="{{ f.id }}" data-type="FALSE_POSITIVE">
+                                            <i class="bi bi-x-circle"></i> 误报
+                                        </button>
+                                        <button class="btn btn-sm btn-outline-secondary feedback-btn"
+                                                data-finding-id="{{ f.id }}" data-type="RESOLVED">
+                                            <i class="bi bi-check2"></i> 已处理
+                                        </button>
+                                    </div>
+                                </div>
+                                {% endfor %}
+                            </div>
+                        </div>
+                        {% endif %}
+                        {% endfor %}
+                    {% else %}
+                    <p class="text-muted text-center py-4">暂无评审发现</p>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
 </div>
 {% endblock %}
 
 {% block extra_scripts %}
 <script>
-function applyFilters() {
-    const severity = document.querySelector('.filter-btn.active')?.dataset.severity || 'all';
-    const hideLow = document.getElementById('hideLowConf').checked;
+// ---- State ----
+let currentFilter = 'all';
+let currentFileFilter = '';
 
-    document.querySelectorAll('.finding-item').forEach(item => {
+// ---- Apply Filters ----
+function applyFilters() {
+    const hideLow = document.getElementById('hideLowConf').checked;
+    let visible = 0;
+
+    document.querySelectorAll('.finding-card').forEach(item => {
         let show = true;
-        if (severity !== 'all' && item.dataset.severity !== severity) show = false;
+        if (currentFilter !== 'all' && item.dataset.severity !== currentFilter) show = false;
         if (hideLow && parseFloat(item.dataset.confidence) < 0.6) show = false;
+        if (currentFileFilter && item.dataset.filePath !== currentFileFilter) show = false;
         item.style.display = show ? '' : 'none';
+        if (show) visible++;
     });
+
+    // Show/hide severity groups
+    document.querySelectorAll('.severity-group').forEach(group => {
+        const sev = group.dataset.severity;
+        const hasVisible = Array.from(group.querySelectorAll('.finding-card')).some(
+            card => card.style.display !== 'none'
+        );
+        group.style.display = 'none';
+        if (currentFilter === 'all' || currentFilter === sev) {
+            group.style.display = hasVisible ? '' : 'none';
+        }
+    });
+
+    document.getElementById('visibleCount').textContent = visible;
 }
 
-// Severity filter
+// ---- Severity Filter ----
 document.querySelectorAll('.filter-btn').forEach(btn => {
     btn.addEventListener('click', function() {
         document.querySelectorAll('.filter-btn').forEach(b => b.classList.remove('active'));
         this.classList.add('active');
+        currentFilter = this.dataset.severity;
         applyFilters();
     });
 });
 
-// Confidence filter toggle
+// ---- Confidence Filter ----
 document.getElementById('hideLowConf').addEventListener('change', applyFilters);
 
-// Feedback buttons
+// ---- File Filter ----
+document.querySelectorAll('.file-item').forEach(item => {
+    item.addEventListener('click', function(e) {
+        e.preventDefault();
+        const filePath = this.dataset.filePath;
+        document.querySelectorAll('.file-item').forEach(f => f.classList.remove('active'));
+        this.classList.add('active');
+        currentFileFilter = currentFileFilter === filePath ? '' : filePath;
+        applyFilters();
+        // Scroll findings into view
+        document.getElementById('findingsList').scrollIntoView({ behavior: 'smooth' });
+    });
+});
+
+// ---- Copy to Clipboard ----
+document.querySelectorAll('.copy-btn').forEach(btn => {
+    btn.addEventListener('click', async function() {
+        try {
+            await navigator.clipboard.writeText(this.dataset.text);
+            const icon = this.querySelector('i');
+            icon.className = 'bi bi-check-lg';
+            setTimeout(() => { icon.className = 'bi bi-clipboard'; }, 1500);
+        } catch (e) { /* fallback */ }
+    });
+});
+
+// ---- Expand / Collapse All ----
+document.getElementById('expandAllBtn').addEventListener('click', () => {
+    document.querySelectorAll('.severity-group .collapse').forEach(c => {
+        if (bootstrap.Collapse.getInstance(c)) bootstrap.Collapse.getInstance(c).show();
+    });
+});
+document.getElementById('collapseAllBtn').addEventListener('click', () => {
+    document.querySelectorAll('.severity-group .collapse').forEach(c => {
+        if (bootstrap.Collapse.getInstance(c)) bootstrap.Collapse.getInstance(c).hide();
+    });
+});
+
+// ---- Keyboard Shortcuts ----
+document.addEventListener('keydown', function(e) {
+    // Don't trigger when typing in inputs
+    if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return;
+
+    const keyMap = {
+        '1': 'all', '2': 'critical', '3': 'high', '4': 'medium', '5': 'low'
+    };
+    if (e.key in keyMap) {
+        const sev = keyMap[e.key];
+        document.querySelectorAll('.filter-btn').forEach(b => {
+            b.classList.toggle('active', b.dataset.severity === sev);
+        });
+        currentFilter = sev;
+        applyFilters();
+        e.preventDefault();
+    }
+
+    // F / f: focus next visible finding
+    if (e.key === 'f' || e.key === 'F') {
+        const visible = document.querySelector('.finding-card[style*="display: block"], .finding-card:not([style*="display: none"])');
+        if (visible) visible.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        e.preventDefault();
+    }
+
+    // R: re-run (go to progress page)
+    if ((e.key === 'r' || e.key === 'R') && !e.ctrlKey && !e.metaKey) {
+        window.location.href = '/tasks/{{ task.id }}';
+        e.preventDefault();
+    }
+});
+
+// ---- Feedback Buttons ----
 document.querySelectorAll('.feedback-btn').forEach(btn => {
     btn.addEventListener('click', async function() {
         const findingId = this.dataset.findingId;
@@ -240,6 +370,16 @@ document.querySelectorAll('.feedback-btn').forEach(btn => {
         }
     });
 });
+
+// ---- Tooltip: keyboard shortcuts hint ----
+const hint = document.createElement('div');
+hint.className = 'text-muted small text-end mt-2';
+hint.innerHTML = `
+    <i class="bi bi-keyboard"></i>
+    <kbd>1</kbd>全部 <kbd>2</kbd>严重 <kbd>3</kbd>高 <kbd>4</kbd>中 <kbd>5</kbd>低
+    <kbd>F</kbd>下一个 <kbd>R</kbd>刷新
+`;
+document.querySelector('#findingsList').parentElement.appendChild(hint);
 
 // Apply filters on load
 applyFilters();
