@@ -9,6 +9,9 @@ build/
 # Environment
 .env
 
+# Test cache
+.pytest_cache/
+
 # IDE
 .idea/
 .vscode/
