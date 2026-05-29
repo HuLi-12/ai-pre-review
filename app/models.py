@@ -35,6 +35,7 @@ class PRChangedFile(Base):
     patch = Column(Text, nullable=True)
     raw_content = Column(Text, nullable=True)
     risk_level = Column(String(32), nullable=True)
+    risk_score = Column(Integer, default=0)
     file_summary = Column(Text, nullable=True)
     created_at = Column(DateTime, default=datetime.datetime.utcnow)
 
