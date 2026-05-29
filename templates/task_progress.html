@@ -29,6 +29,9 @@
                     <tr><th style="width:120px">PR 链接</th><td><a href="{{ task.pr_url }}" target="_blank">{{ task.pr_url }}</a></td></tr>
                     <tr><th>状态</th><td><span class="badge bg-info" id="statusBadge">{{ task.status }}</span></td></tr>
                     <tr><th>创建时间</th><td>{{ task.created_at }}</td></tr>
+                    {% if task.auto_comment %}
+                    <tr><th>GitHub 评论</th><td><span class="badge bg-success">已启用</span></td></tr>
+                    {% endif %}
                 </table>
 
                 <a href="/tasks/{{ task.id }}/report" class="btn btn-success d-none" id="viewReportBtn">

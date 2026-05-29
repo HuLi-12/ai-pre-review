@@ -131,19 +131,54 @@ class ReportGenerator:
 
     @staticmethod
     def generate_github_comment(report: Report) -> str:
-        """Generate a concise GitHub PR comment"""
+        """Generate a concise GitHub PR comment (high-confidence findings only)."""
         parts = []
-        parts.append(f"## 🤖 AI Code Review\n")
-        parts.append(f"**风险等级:** {report.risk_level}")
-        parts.append(f"**合并建议:** {report.merge_suggestion}\n")
+        parts.append("## 🤖 AI Code Review\n")
 
+        total = sum(len(v) for v in report.findings_by_severity.values())
+        if total == 0:
+            parts.append("未发现明显问题。\n")
+            return "\n".join(parts)
+
+        parts.append(f"**风险等级:** `{report.risk_level}`")
+        parts.append(f"**合并建议:** {report.merge_suggestion}")
+        parts.append(f"**共发现:** {total} 个问题\n")
+
+        # Summary
         if report.key_focus_points:
             parts.append("### 重点关注\n")
             for p in report.key_focus_points[:5]:
                 parts.append(f"- {p}")
             parts.append("")
 
-        total = sum(len(v) for v in report.findings_by_severity.values())
-        parts.append(f"共发现 {total} 个问题。查看完整报告获取详细信息。")
+        # High severity issues (suitable for GitHub comment)
+        high_confidence = []
+        for severity in ("critical", "high"):
+            for fd in report.findings_by_severity.get(severity, []):
+                confidence = fd.get("confidence", 0) or 0
+                if confidence >= 0.70:  # Only high confidence for GitHub
+                    high_confidence.append(fd)
+
+        if high_confidence:
+            parts.append("### 高风险问题\n")
+            for i, fd in enumerate(high_confidence[:10], 1):
+                file_path = fd.get("file", "")
+                line = fd.get("line", "")
+                title = fd.get("title", "")
+                loc = f"`{file_path}`" + (f":{line}" if line else "")
+                parts.append(f"{i}. {loc} — {title}")
+            parts.append("")
+
+        # Medium suggestions (summarized)
+        medium = report.findings_by_severity.get("medium", [])
+        high_conf_medium = [f for f in medium if (f.get("confidence", 0) or 0) >= 0.70]
+        if high_conf_medium:
+            parts.append("### 改进建议\n")
+            for fd in high_conf_medium[:5]:
+                parts.append(f"- `{fd.get('file', '')}` — {fd.get('title', '')}")
+            parts.append("")
+
+        parts.append("---")
+        parts.append("*完整报告请查看 AI Code Review 系统页面。*")
 
         return "\n".join(parts)

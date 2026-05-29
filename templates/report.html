@@ -47,13 +47,17 @@
                 <div class="list-group list-group-flush" style="max-height: 500px; overflow-y: auto;">
                     {% for file in files %}
                     <a href="#" class="list-group-item list-group-item-action file-item" data-file-id="{{ file.id }}">
-                        <div class="d-flex w-100 justify-content-between">
-                            <small class="text-truncate" style="max-width: 180px;">{{ file.file_path.split('/')[-1] }}</small>
-                            <small>
-                                {% if file.risk_level == 'high' or file.risk_level == 'critical' %}
-                                    <span class="badge bg-danger">risk</span>
-                                {% endif %}
-                            </small>
+                        <div class="d-flex w-100 justify-content-between align-items-center">
+                            <small class="text-truncate" style="max-width: 150px;">{{ file.file_path.split('/')[-1] }}</small>
+                            {% if file.risk_level == 'HIGH' %}
+                                <span class="badge bg-danger">HIGH</span>
+                            {% elif file.risk_level == 'MEDIUM' %}
+                                <span class="badge bg-warning text-dark">MED</span>
+                            {% elif file.risk_level == 'LOW' %}
+                                <span class="badge bg-secondary">low</span>
+                            {% else %}
+                                <small class="text-muted">-</small>
+                            {% endif %}
                         </div>
                         <small class="text-muted text-truncate d-block" style="max-width: 200px;">{{ file.file_path }}</small>
                         <small class="text-muted">+{{ file.additions }}/-{{ file.deletions }}</small>
@@ -86,17 +90,33 @@
                 </div>
                 {% endif %}
 
+                <div class="mb-2">
+                    <label class="form-check form-check-inline">
+                        <input class="form-check-input" type="checkbox" id="hideLowConf" checked>
+                        <span class="form-check-label">隐藏低置信度 (&lt; 0.6)</span>
+                    </label>
+                </div>
                 <div id="findingsList">
                     {% if findings %}
                         {% for f in findings %}
                         <div class="finding-item {{ f.severity }} p-3 mb-2 rounded border"
-                             data-severity="{{ f.severity }}">
+                             data-severity="{{ f.severity }}"
+                             data-confidence="{{ f.confidence or 0 }}">
                             <div class="d-flex justify-content-between align-items-start">
                                 <h6 class="mb-1">
                                     <span class="badge badge-{{ f.severity }} me-1">{{ f.severity }}</span>
                                     {{ f.title }}
                                 </h6>
-                                <small class="text-muted">置信度: {{ f.confidence or 'N/A' }}</small>
+                                <small class="text-muted">
+                                    置信度: {{ (f.confidence * 100)|int if f.confidence else 0 }}%
+                                    {% if (f.confidence or 0) >= 0.8 %}
+                                        <span class="badge bg-success">高可信</span>
+                                    {% elif (f.confidence or 0) >= 0.6 %}
+                                        <span class="badge bg-warning text-dark">中</span>
+                                    {% else %}
+                                        <span class="badge bg-secondary">低</span>
+                                    {% endif %}
+                                </small>
                             </div>
                             <p class="mb-1 small">
                                 <code>{{ f.file_path }}</code>{% if f.line_number %}:{{ f.line_number }}{% endif %}
@@ -175,21 +195,29 @@
 
 {% block extra_scripts %}
 <script>
-// Filter findings
+function applyFilters() {
+    const severity = document.querySelector('.filter-btn.active')?.dataset.severity || 'all';
+    const hideLow = document.getElementById('hideLowConf').checked;
+
+    document.querySelectorAll('.finding-item').forEach(item => {
+        let show = true;
+        if (severity !== 'all' && item.dataset.severity !== severity) show = false;
+        if (hideLow && parseFloat(item.dataset.confidence) < 0.6) show = false;
+        item.style.display = show ? '' : 'none';
+    });
+}
+
+// Severity filter
 document.querySelectorAll('.filter-btn').forEach(btn => {
     btn.addEventListener('click', function() {
         document.querySelectorAll('.filter-btn').forEach(b => b.classList.remove('active'));
         this.classList.add('active');
-        const severity = this.dataset.severity;
-        document.querySelectorAll('.finding-item').forEach(item => {
-            if (severity === 'all' || item.dataset.severity === severity) {
-                item.style.display = '';
-            } else {
-                item.style.display = 'none';
-            }
-        });
+        applyFilters();
     });
 });
+
+// Confidence filter toggle
+document.getElementById('hideLowConf').addEventListener('change', applyFilters);
 
 // Feedback buttons
 document.querySelectorAll('.feedback-btn').forEach(btn => {
@@ -212,5 +240,8 @@ document.querySelectorAll('.feedback-btn').forEach(btn => {
         }
     });
 });
+
+// Apply filters on load
+applyFilters();
 </script>
 {% endblock %}
