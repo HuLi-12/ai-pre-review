@@ -104,8 +104,16 @@ class ReviewEngine:
             if task.auto_comment and merged:
                 try:
                     comment = self.report_gen.generate_github_comment(report)
-                    self.github.create_pr_comment(owner, repo, number, comment)
-                    task.current_step = "COMMENTED"
+                    if task.comment_id:
+                        ok = self.github.update_pr_comment(owner, repo, task.comment_id, comment)
+                        task.current_step = "COMMENT_UPDATED" if ok else "COMMENT_FAILED"
+                    else:
+                        comment_id = self.github.create_pr_comment(owner, repo, number, comment)
+                        if comment_id:
+                            task.comment_id = comment_id
+                            task.current_step = "COMMENTED"
+                        else:
+                            task.current_step = "COMMENT_FAILED"
                     db.commit()
                 except Exception as e:
                     print(f"Failed to post GitHub comment: {e}")

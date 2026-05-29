@@ -14,6 +14,7 @@ class PRReviewTask(Base):
     commit_sha = Column(String(128), nullable=True)
     status = Column(String(32), nullable=False, default="PENDING")
     auto_comment = Column(Integer, default=0)
+    comment_id = Column(Integer, nullable=True)
     summary = Column(Text, nullable=True)
     risk_level = Column(String(32), nullable=True)
     progress = Column(Integer, default=0)
