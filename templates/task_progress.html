@@ -1,0 +1,71 @@
+{% extends "base.html" %}
+{% block title %}任务 #{{ task.id }} - AI Code Review{% endblock %}
+
+{% block content %}
+<div class="row">
+    <div class="col-lg-8 mx-auto">
+        <div class="card shadow-sm border-0">
+            <div class="card-body">
+                <h4 class="mb-3">
+                    <i class="bi bi-github"></i>
+                    {{ task.repo_owner }}/{{ task.repo_name }} #{{ task.pr_number }}
+                </h4>
+
+                <div class="mb-4">
+                    <div class="d-flex justify-content-between mb-1">
+                        <span id="statusText" class="fw-medium">状态: {{ task.status }}</span>
+                        <span id="progressText">{{ task.progress }}%</span>
+                    </div>
+                    <div class="progress" style="height: 10px;">
+                        <div id="progressBar"
+                             class="progress-bar progress-bar-striped progress-bar-animated"
+                             role="progressbar"
+                             style="width: {{ task.progress }}%">
+                        </div>
+                    </div>
+                </div>
+
+                <table class="table table-sm">
+                    <tr><th style="width:120px">PR 链接</th><td><a href="{{ task.pr_url }}" target="_blank">{{ task.pr_url }}</a></td></tr>
+                    <tr><th>状态</th><td><span class="badge bg-info" id="statusBadge">{{ task.status }}</span></td></tr>
+                    <tr><th>创建时间</th><td>{{ task.created_at }}</td></tr>
+                </table>
+
+                <a href="/tasks/{{ task.id }}/report" class="btn btn-success d-none" id="viewReportBtn">
+                    <i class="bi bi-file-text"></i> 查看评审报告
+                </a>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_scripts %}
+<script>
+const taskId = {{ task.id }};
+const interval = setInterval(async () => {
+    try {
+        const resp = await fetch(`/api/tasks/${taskId}`);
+        const data = await resp.json();
+
+        document.getElementById('statusText').textContent = `状态: ${data.status}`;
+        document.getElementById('statusBadge').textContent = data.status;
+        document.getElementById('progressBar').style.width = (data.progress || 0) + '%';
+        document.getElementById('progressText').textContent = (data.progress || 0) + '%';
+
+        if (data.status === 'DONE') {
+            clearInterval(interval);
+            document.getElementById('statusBadge').className = 'badge bg-success';
+            document.getElementById('progressBar').className = 'progress-bar bg-success';
+            document.getElementById('viewReportBtn').classList.remove('d-none');
+        } else if (data.status === 'FAILED') {
+            clearInterval(interval);
+            document.getElementById('statusBadge').className = 'badge bg-danger';
+            document.getElementById('progressBar').className = 'progress-bar bg-danger';
+        }
+    } catch (e) {
+        console.error('Poll error:', e);
+    }
+}, 2000);
+</script>
+{% endblock %}

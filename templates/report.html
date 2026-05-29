@@ -1,0 +1,216 @@
+{% extends "base.html" %}
+{% block title %}评审报告 - {{ task.repo_owner }}/{{ task.repo_name }} #{{ task.pr_number }}{% endblock %}
+
+{% block content %}
+<div class="row mb-3">
+    <div class="col">
+        <nav aria-label="breadcrumb">
+            <ol class="breadcrumb">
+                <li class="breadcrumb-item"><a href="/">首页</a></li>
+                <li class="breadcrumb-item"><a href="/tasks/{{ task.id }}">任务 #{{ task.id }}</a></li>
+                <li class="breadcrumb-item active">评审报告</li>
+            </ol>
+        </nav>
+    </div>
+</div>
+
+<div class="row">
+    <div class="col-12 mb-3">
+        <div class="card shadow-sm border-0">
+            <div class="card-body">
+                <div class="d-flex align-items-center justify-content-between">
+                    <div>
+                        <h4 class="mb-1">
+                            <i class="bi bi-github"></i>
+                            <a href="{{ task.pr_url }}" target="_blank">{{ task.repo_owner }}/{{ task.repo_name }} #{{ task.pr_number }}</a>
+                        </h4>
+                        <p class="text-muted mb-0">{{ task.pr_url }}</p>
+                    </div>
+                    <div class="text-end">
+                        <span class="badge {% if report.risk_level == 'CRITICAL' %}bg-danger{% elif report.risk_level == 'HIGH' %}bg-warning text-dark{% elif report.risk_level == 'MEDIUM' %}bg-info{% else %}bg-success{% endif %} fs-6">
+                            风险等级: {{ report.risk_level }}
+                        </span>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="row">
+    <div class="col-lg-3 mb-3">
+        <div class="card shadow-sm border-0">
+            <div class="card-header bg-white">
+                <h6 class="mb-0"><i class="bi bi-files"></i> 变更文件</h6>
+            </div>
+            <div class="card-body p-0">
+                <div class="list-group list-group-flush" style="max-height: 500px; overflow-y: auto;">
+                    {% for file in files %}
+                    <a href="#" class="list-group-item list-group-item-action file-item" data-file-id="{{ file.id }}">
+                        <div class="d-flex w-100 justify-content-between">
+                            <small class="text-truncate" style="max-width: 180px;">{{ file.file_path.split('/')[-1] }}</small>
+                            <small>
+                                {% if file.risk_level == 'high' or file.risk_level == 'critical' %}
+                                    <span class="badge bg-danger">risk</span>
+                                {% endif %}
+                            </small>
+                        </div>
+                        <small class="text-muted text-truncate d-block" style="max-width: 200px;">{{ file.file_path }}</small>
+                        <small class="text-muted">+{{ file.additions }}/-{{ file.deletions }}</small>
+                    </a>
+                    {% else %}
+                    <div class="list-group-item text-muted">暂无文件信息</div>
+                    {% endfor %}
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="col-lg-6 mb-3">
+        <div class="card shadow-sm border-0">
+            <div class="card-header bg-white d-flex justify-content-between align-items-center">
+                <h6 class="mb-0"><i class="bi bi-chat-dots"></i> Review 结果</h6>
+                <div class="btn-group btn-group-sm">
+                    <button class="btn btn-outline-secondary filter-btn active" data-severity="all">全部</button>
+                    <button class="btn btn-outline-danger filter-btn" data-severity="critical">严重</button>
+                    <button class="btn btn-outline-warning filter-btn" data-severity="high">高</button>
+                    <button class="btn btn-outline-info filter-btn" data-severity="medium">中</button>
+                    <button class="btn btn-outline-secondary filter-btn" data-severity="low">低</button>
+                </div>
+            </div>
+            <div class="card-body" style="max-height: 600px; overflow-y: auto;">
+                {% if summary %}
+                <div class="mb-4 p-3 bg-light rounded">
+                    <h6>PR 摘要</h6>
+                    <p class="mb-0">{{ summary }}</p>
+                </div>
+                {% endif %}
+
+                <div id="findingsList">
+                    {% if findings %}
+                        {% for f in findings %}
+                        <div class="finding-item {{ f.severity }} p-3 mb-2 rounded border"
+                             data-severity="{{ f.severity }}">
+                            <div class="d-flex justify-content-between align-items-start">
+                                <h6 class="mb-1">
+                                    <span class="badge badge-{{ f.severity }} me-1">{{ f.severity }}</span>
+                                    {{ f.title }}
+                                </h6>
+                                <small class="text-muted">置信度: {{ f.confidence or 'N/A' }}</small>
+                            </div>
+                            <p class="mb-1 small">
+                                <code>{{ f.file_path }}</code>{% if f.line_number %}:{{ f.line_number }}{% endif %}
+                            </p>
+                            {% if f.reason %}
+                            <p class="mb-1 small text-muted">{{ f.reason }}</p>
+                            {% endif %}
+                            {% if f.suggestion %}
+                            <div class="p-2 bg-light rounded small mt-1">
+                                <strong>建议:</strong> {{ f.suggestion }}
+                            </div>
+                            {% endif %}
+                            <div class="mt-2">
+                                <button class="btn btn-sm btn-outline-success feedback-btn"
+                                        data-finding-id="{{ f.id }}" data-type="EFFECTIVE">
+                                    <i class="bi bi-check-circle"></i> 有效
+                                </button>
+                                <button class="btn btn-sm btn-outline-warning feedback-btn"
+                                        data-finding-id="{{ f.id }}" data-type="FALSE_POSITIVE">
+                                    <i class="bi bi-x-circle"></i> 误报
+                                </button>
+                                <button class="btn btn-sm btn-outline-secondary feedback-btn"
+                                        data-finding-id="{{ f.id }}" data-type="RESOLVED">
+                                    <i class="bi bi-check2"></i> 已处理
+                                </button>
+                            </div>
+                        </div>
+                        {% endfor %}
+                    {% else %}
+                    <p class="text-muted text-center py-4">暂无评审发现</p>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="col-lg-3 mb-3">
+        <div class="card shadow-sm border-0 mb-3">
+            <div class="card-header bg-white">
+                <h6 class="mb-0"><i class="bi bi-pie-chart"></i> 概览</h6>
+            </div>
+            <div class="card-body">
+                <div class="d-flex justify-content-between mb-2">
+                    <span>🔴 严重: <strong class="severity-critical">{{ counts.critical }}</strong></span>
+                    <span>🟠 高: <strong class="severity-high">{{ counts.high }}</strong></span>
+                </div>
+                <div class="d-flex justify-content-between mb-2">
+                    <span>🟡 中: <strong class="severity-medium">{{ counts.medium }}</strong></span>
+                    <span>⚪ 低: <strong class="severity-low">{{ counts.low }}</strong></span>
+                </div>
+                <hr>
+                <p class="mb-1"><strong>合并建议:</strong></p>
+                <p class="text-muted small">{{ report.merge_suggestion or '无' }}</p>
+            </div>
+        </div>
+
+        <div class="card shadow-sm border-0">
+            <div class="card-header bg-white">
+                <h6 class="mb-0"><i class="bi bi-lightbulb"></i> 重点关注</h6>
+            </div>
+            <div class="card-body">
+                {% if key_focus_points %}
+                <ul class="list-unstyled mb-0">
+                    {% for point in key_focus_points %}
+                    <li class="mb-2 small"><i class="bi bi-arrow-right-circle text-danger"></i> {{ point }}</li>
+                    {% endfor %}
+                </ul>
+                {% else %}
+                <p class="text-muted small mb-0">暂无重点关注的项</p>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_scripts %}
+<script>
+// Filter findings
+document.querySelectorAll('.filter-btn').forEach(btn => {
+    btn.addEventListener('click', function() {
+        document.querySelectorAll('.filter-btn').forEach(b => b.classList.remove('active'));
+        this.classList.add('active');
+        const severity = this.dataset.severity;
+        document.querySelectorAll('.finding-item').forEach(item => {
+            if (severity === 'all' || item.dataset.severity === severity) {
+                item.style.display = '';
+            } else {
+                item.style.display = 'none';
+            }
+        });
+    });
+});
+
+// Feedback buttons
+document.querySelectorAll('.feedback-btn').forEach(btn => {
+    btn.addEventListener('click', async function() {
+        const findingId = this.dataset.findingId;
+        const type = this.dataset.type;
+        try {
+            const resp = await fetch(`/api/findings/${findingId}/feedback`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ feedback_type: type })
+            });
+            if (resp.ok) {
+                this.classList.remove('btn-outline-success', 'btn-outline-warning', 'btn-outline-secondary');
+                this.classList.add('btn-success');
+                this.disabled = true;
+            }
+        } catch (e) {
+            console.error('Feedback error:', e);
+        }
+    });
+});
+</script>
+{% endblock %}
