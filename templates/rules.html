@@ -1,0 +1,76 @@
+{% extends "base.html" %}
+{% block title %}规则说明 - AI Code Review{% endblock %}
+{% block content %}
+<h4 class="mb-4"><i class="bi bi-shield-check"></i> 静态规则说明</h4>
+
+<div class="row mb-4">
+    <div class="col-12">
+        <div class="card">
+            <div class="card-body">
+                <p class="mb-2">本工具使用 <strong>15 条静态规则 (S001-S015)</strong> 对 PR 变更进行自动扫描。</p>
+                <ul class="mb-0">
+                    <li><strong>静态规则</strong> — 基于正则匹配，只扫描 patch 中的新增行，避免误报已有代码</li>
+                    <li><strong>AI 检测</strong> — 通过 LLM 进行语义分析，检测模式无法覆盖的复杂问题</li>
+                    <li><strong>混合检测</strong> — 静态规则 + AI 同时命中时，置信度加分，结果更可靠</li>
+                    <li>扫描结果经过 <strong>签名去重</strong> 和 <strong>置信度过滤</strong> 后展示</li>
+                </ul>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="row g-3">
+    {% for rule in rules %}
+    <div class="col-md-6">
+        <div class="card h-100">
+            <div class="card-header d-flex justify-content-between align-items-center">
+                <span>
+                    <strong>{{ rule.id }}</strong>
+                    <span class="ms-2 text-muted small">{{ rule.name }}</span>
+                </span>
+                <span class="badge {% if rule.severity == 'critical' %}bg-danger{% elif rule.severity == 'high' %}bg-warning text-dark{% elif rule.severity == 'medium' %}bg-info text-dark{% else %}bg-secondary{% endif %}">
+                    {{ rule.severity | upper }}
+                </span>
+            </div>
+            <div class="card-body">
+                <p class="card-text">{{ rule.description }}</p>
+                {% if rule.bad_code %}
+                <div class="mb-2">
+                    <small class="text-danger fw-bold">反例</small>
+                    <pre class="code-block mb-0"><span class="diff-del">{{ rule.bad_code }}</span></pre>
+                </div>
+                {% endif %}
+                {% if rule.good_code %}
+                <div>
+                    <small class="text-success fw-bold">建议</small>
+                    <pre class="code-block mb-0"><span class="diff-add">{{ rule.good_code }}</span></pre>
+                </div>
+                {% endif %}
+            </div>
+            <div class="card-footer d-flex justify-content-between align-items-center">
+                <small class="text-muted">
+                    {% if rule.detection == "static" %}
+                    <span class="badge bg-secondary">静态规则</span>
+                    {% elif rule.detection == "ai" %}
+                    <span class="badge bg-primary">AI 检测</span>
+                    {% else %}
+                    <span class="badge bg-success">混合检测</span>
+                    {% endif %}
+                </small>
+                <small class="text-muted">
+                    {% if rule.id in ("S005", "S014") %}
+                    置信度: <strong>0.85</strong> (确定性规则)
+                    {% elif rule.severity == "critical" %}
+                    置信度: 0.75
+                    {% elif rule.severity == "high" %}
+                    置信度: 0.65
+                    {% else %}
+                    置信度: 0.45
+                    {% endif %}
+                </small>
+            </div>
+        </div>
+    </div>
+    {% endfor %}
+</div>
+{% endblock %}
