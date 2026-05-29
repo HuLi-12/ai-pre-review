@@ -415,8 +415,13 @@ class ReviewEngine:
 
             # For rule-only findings, give them their base confidence
             if best.get("source") == "static_rule":
-                if best.get("severity") in ("critical", "high"):
-                    best["confidence"] = 0.55
+                rule_id = best.get("type", "")
+                if rule_id in ("S005", "S014"):
+                    best["confidence"] = 0.85  # Deterministic high-risk rules, always show
+                elif best.get("severity") == "critical":
+                    best["confidence"] = 0.75
+                elif best.get("severity") == "high":
+                    best["confidence"] = 0.65
                 else:
                     best["confidence"] = 0.45
             else:

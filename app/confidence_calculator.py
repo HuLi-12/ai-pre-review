@@ -11,9 +11,28 @@ Thresholds:
 
 
 def calculate_confidence(finding: dict, has_rule_match: bool = False) -> float:
-    """Calculate confidence score for a finding."""
-    score = 0.0
+    """Calculate confidence score for a finding.
+
+    Rule-specific overrides:
+      - S005 (hardcoded_password): 0.85 — deterministic, high-risk
+      - S014 (unsafe_delete_or_update): 0.85 — deterministic, high-risk
+      - Other critical rules: 0.75
+      - Other high rules: 0.65
+    """
     source = finding.get("source", "ai_file")
+
+    # Rule-specific overrides for deterministic high-risk rules
+    rule_id = finding.get("type", "")
+    severity = finding.get("severity", "")
+    if source == "static_rule":
+        if rule_id in ("S005", "S014"):
+            return 0.85
+        elif severity == "critical":
+            return 0.75
+        elif severity == "high":
+            return 0.65
+
+    score = 0.0
 
     # 1. Base score by source
     source_bases = {
