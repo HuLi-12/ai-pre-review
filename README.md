@@ -14,6 +14,74 @@ AI-powered GitHub Pull Request code review assistant. Automatically analyzes PR 
 - **GitHub Comment** — Optional auto-posting of high-confidence findings to PR conversation
 - **Web Dashboard** — Three-panel report view with severity/confidence filters and feedback buttons
 
+## Architecture
+
+The system follows a multi-stage pipeline architecture that transforms a GitHub PR into a structured review report:
+
+```mermaid
+flowchart TB
+    subgraph Input["Input Layer"]
+        A[GitHub PR URL] --> B[GitHubClient]
+        B -->|PR Info + Diff| C[ReviewEngine]
+    end
+
+    subgraph Analysis["Analysis Pipeline"]
+        C --> D[StaticScanner<br/>15 Rules S001-S015]
+        C --> E[ContextBuilder<br/>Related Files]
+        C --> F[RiskScorer<br/>File Risk Scoring]
+        E --> G[AIClient<br/>LLM Review]
+        F --> G
+        D --> H[Merge & Dedup]
+        G --> H
+        H --> I[ConfidenceCalculator]
+    end
+
+    subgraph Output["Output Layer"]
+        I --> J[ReportGenerator]
+        J --> K[(REST API<br/>FastAPI)]
+        J --> L[Web Dashboard<br/>Jinja2+Bootstrap]
+        J --> M[GitHub PR Comment]
+    end
+
+    style Input fill:#1a237e,color:#fff
+    style Analysis fill:#004d40,color:#fff
+    style Output fill:#4a148c,color:#fff
+```
+
+### Review Pipeline Stages
+
+| Stage | Step | Description |
+|-------|------|-------------|
+| 1 | FETCHING_PR | Parse PR URL, fetch metadata + diff via GitHub API |
+| 2 | BUILDING_CONTEXT | Identify related files, build multi-layer context |
+| 3 | STATIC_SCAN | Run 15 deterministic rules on patch added lines |
+| 4 | AI_PR_SUMMARY | LLM generates PR-level summary |
+| 5 | AI_FILE_REVIEW | Per-file deep/normal analysis by risk score |
+| 6 | AI_CROSS_FILE | Cross-file consistency check (≥2 files) |
+| 7 | MERGING_RESULTS | Signature dedup + confidence scoring + threshold filter |
+
+## Testing
+
+```
+tests/
+├── test_diff_utils.py          # Parse patch edge cases (5 tests)
+├── test_static_scanner.py      # S005/S014/S011/S010, safe patterns (8 tests)
+├── test_risk_scorer.py         # Scoring by path/keywords/size (6 tests)
+├── test_confidence_calculator.py # Thresholds, agreement, overrides (7 tests)
+└── test_github_client.py       # URL parsing (3 tests)
+```
+
+Run tests:
+```bash
+python -m pytest tests/ -v
+```
+
+## CI/CD
+
+[![CI](https://github.com/HuLi-12/ai-pre-review/actions/workflows/ci.yml/badge.svg)](https://github.com/HuLi-12/ai-pre-review/actions/workflows/ci.yml)
+
+On push/PR to `master`: Python 3.10, install deps, run 28 tests, verify import integrity.
+
 ## Quick Start
 
 ```bash
