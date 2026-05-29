@@ -1,0 +1,125 @@
+{% extends "base.html" %}
+{% block title %}任务列表 - AI Code Review{% endblock %}
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <h4 class="mb-0"><i class="bi bi-list-check"></i> Review 任务列表</h4>
+    <a href="/" class="btn btn-outline-primary btn-sm">
+        <i class="bi bi-plus-lg"></i> 新建 Review
+    </a>
+</div>
+
+{% if not total %}
+<div class="card">
+    <div class="card-body text-center py-5">
+        <i class="bi bi-inbox" style="font-size: 3rem; color: #ccc;"></i>
+        <p class="text-muted mt-3 mb-0">暂无 Review 任务</p>
+        <a href="/" class="btn btn-primary mt-2">创建第一个 Review</a>
+    </div>
+</div>
+{% else %}
+
+<!-- Filter bar -->
+<form method="GET" action="/tasks" class="row g-2 mb-3">
+    <div class="col-md-5">
+        <input type="text" name="q" class="form-control form-control-sm" placeholder="搜索 PR URL..." value="{{ q }}">
+    </div>
+    <div class="col-md-3">
+        <select name="status" class="form-select form-select-sm">
+            <option value="">全部状态</option>
+            {% for s in statuses %}
+            <option value="{{ s }}" {% if status_filter == s %}selected{% endif %}>{{ s }}</option>
+            {% endfor %}
+        </select>
+    </div>
+    <div class="col-md-2">
+        <button type="submit" class="btn btn-outline-secondary btn-sm w-100">
+            <i class="bi bi-search"></i> 搜索
+        </button>
+    </div>
+</form>
+
+<div class="table-responsive">
+    <table class="table table-hover align-middle">
+        <thead class="table-dark">
+            <tr>
+                <th>#</th>
+                <th>PR</th>
+                <th>仓库</th>
+                <th class="text-center">状态</th>
+                <th class="text-center">风险</th>
+                <th class="text-center">时间</th>
+                <th class="text-center">操作</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for t in tasks %}
+            <tr>
+                <td class="text-muted">{{ t.id }}</td>
+                <td>
+                    <a href="{{ t.pr_url }}" target="_blank" class="text-decoration-none">
+                        #{{ t.pr_number }} <i class="bi bi-box-arrow-up-right" style="font-size: 0.7rem;"></i>
+                    </a>
+                </td>
+                <td><small class="text-muted">{{ t.repo_owner }}/{{ t.repo_name }}</small></td>
+                <td class="text-center">
+                    {% if t.status == "DONE" %}
+                    <span class="badge bg-success">完成</span>
+                    {% elif t.status == "FAILED" %}
+                    <span class="badge bg-danger">失败</span>
+                    {% elif t.status == "PENDING" %}
+                    <span class="badge bg-secondary">等待中</span>
+                    {% else %}
+                    <span class="badge bg-info text-dark">{{ t.status }}</span>
+                    {% endif %}
+                </td>
+                <td class="text-center">
+                    {% if t.risk_level == "HIGH" %}
+                    <span class="badge badge-critical">HIGH</span>
+                    {% elif t.risk_level == "MEDIUM" %}
+                    <span class="badge badge-high">MEDIUM</span>
+                    {% elif t.risk_level == "LOW" %}
+                    <span class="badge bg-success">LOW</span>
+                    {% else %}
+                    <span class="badge bg-secondary">--</span>
+                    {% endif %}
+                </td>
+                <td class="text-center text-muted"><small>{{ t.created_at.strftime('%m-%d %H:%M') }}</small></td>
+                <td class="text-center">
+                    {% if t.status == "DONE" %}
+                    <a href="/tasks/{{ t.id }}/report" class="btn btn-outline-primary btn-sm">
+                        <i class="bi bi-file-text"></i> 报告
+                    </a>
+                    {% else %}
+                    <a href="/tasks/{{ t.id }}" class="btn btn-outline-secondary btn-sm">
+                        <i class="bi bi-arrow-right"></i> 进度
+                    </a>
+                    {% endif %}
+                </td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+
+<!-- Pagination -->
+{% if total_pages > 1 %}
+<nav>
+    <ul class="pagination pagination-sm justify-content-center">
+        {% set prev_page = page - 1 %}
+        {% set next_page = page + 1 %}
+        <li class="page-item {% if page <= 1 %}disabled{% endif %}">
+            <a class="page-link" href="?page={{ prev_page }}&q={{ q }}&status={{ status_filter }}">上一页</a>
+        </li>
+        {% for p in range(1, total_pages + 1) %}
+        <li class="page-item {% if p == page %}active{% endif %}">
+            <a class="page-link" href="?page={{ p }}&q={{ q }}&status={{ status_filter }}">{{ p }}</a>
+        </li>
+        {% endfor %}
+        <li class="page-item {% if page >= total_pages %}disabled{% endif %}">
+            <a class="page-link" href="?page={{ next_page }}&q={{ q }}&status={{ status_filter }}">下一页</a>
+        </li>
+    </ul>
+</nav>
+{% endif %}
+{% endif %}
+{% endblock %}

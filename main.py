@@ -37,6 +37,41 @@ def index(request: Request):
     return templates.TemplateResponse("index.html", {"request": request})
 
 
+@app.get("/tasks", response_class=HTMLResponse)
+def task_history(request: Request, page: int = 1, q: str = "", status: str = ""):
+    db = SessionLocal()
+    try:
+        query = db.query(PRReviewTask)
+        if q:
+            query = query.filter(PRReviewTask.pr_url.ilike(f"%{q}%"))
+        if status:
+            query = query.filter(PRReviewTask.status == status)
+
+        total = query.count()
+        per_page = 20
+        total_pages = max(1, (total + per_page - 1) // per_page)
+        page = max(1, min(page, total_pages))
+        offset = (page - 1) * per_page
+
+        tasks = query.order_by(PRReviewTask.created_at.desc()).offset(offset).limit(per_page).all()
+        statuses = ["PENDING", "DONE", "FAILED", "FETCHING_PR", "BUILDING_CONTEXT",
+                     "STATIC_SCAN", "AI_PR_SUMMARY", "AI_FILE_REVIEW", "AI_CROSS_FILE",
+                     "MERGING_RESULTS", "GENERATING_REPORT", "COMMENTED"]
+
+        return templates.TemplateResponse("task_history.html", {
+            "request": request,
+            "tasks": tasks,
+            "total": total,
+            "page": page,
+            "total_pages": total_pages,
+            "q": q,
+            "status_filter": status,
+            "statuses": statuses,
+        })
+    finally:
+        db.close()
+
+
 @app.get("/tasks/{task_id}", response_class=HTMLResponse)
 def task_progress(request: Request, task_id: int):
     db = SessionLocal()
