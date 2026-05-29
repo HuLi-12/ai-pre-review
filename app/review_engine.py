@@ -126,6 +126,8 @@ class ReviewEngine:
         db.commit()
 
     def _save_changed_files(self, task_id: int, files: List[ChangedFile], db: Session):
+        """Save changed files and build file_path -> file_id mapping."""
+        file_map = {}
         for f in files:
             risk = self.risk_scorer.score(f)
             db_file = PRChangedFile(
@@ -137,11 +139,16 @@ class ReviewEngine:
                 patch=f.patch[:50000] if f.patch else "",
                 raw_content=f.raw_content[:50000] if f.raw_content else "",
                 risk_level=risk["level"],
+                risk_score=risk["score"],
             )
             db.add(db_file)
+            db.flush()  # Get the ID before commit
+            file_map[f.file_path] = db_file.id
         db.commit()
+        self._file_map = file_map  # Store for _save_findings
 
     def _save_findings(self, task_id: int, findings: List[dict], db: Session):
+        file_map = getattr(self, '_file_map', {})
         for f in findings:
             confidence = f.get("confidence", 0)
             if isinstance(confidence, str):
@@ -149,9 +156,11 @@ class ReviewEngine:
                     confidence = float(confidence)
                 except (ValueError, TypeError):
                     confidence = 0.0
+            file_path = f.get("file", "")
             db_finding = PRReviewFinding(
                 task_id=task_id,
-                file_path=f.get("file", ""),
+                file_id=file_map.get(file_path),
+                file_path=file_path,
                 line_number=f.get("line"),
                 finding_type=f.get("type", "") or f.get("source", ""),
                 severity=f.get("severity", "low"),

@@ -7,6 +7,10 @@ from app.schemas import ReportResponse, FindingItem, FeedbackRequest
 
 router = APIRouter(prefix="/api", tags=["reports"])
 
+SEVERITY_RANK = {
+    "critical": 4, "high": 3, "medium": 2, "low": 1,
+}
+
 
 @router.get("/tasks/{task_id}/report", response_model=ReportResponse)
 def get_report(task_id: int, db: Session = Depends(get_db)):
@@ -20,15 +24,47 @@ def get_report(task_id: int, db: Session = Depends(get_db)):
 
     findings = db.query(PRReviewFinding).filter(
         PRReviewFinding.task_id == task_id
-    ).order_by(
-        PRReviewFinding.severity.desc(),
-        PRReviewFinding.confidence.desc()
     ).all()
+
+    # Sort by severity rank (not string), then confidence desc
+    findings.sort(
+        key=lambda f: (SEVERITY_RANK.get(f.severity.lower() if f.severity else "low", 0),
+                       -float(f.confidence) if f.confidence else 0),
+        reverse=True,
+    )
+
+    # Derive merge_suggestion and focus points from findings
+    severities = [f.severity.lower() if f.severity else "low" for f in findings]
+    has_critical = "critical" in severities
+    has_high = "high" in severities
+    has_medium = "medium" in severities
+
+    if has_critical:
+        merge_suggestion = "建议修复 critical 及以上风险后再合并"
+    elif has_high:
+        merge_suggestion = "建议修复 high 及以上风险后再合并"
+    elif has_medium:
+        merge_suggestion = "建议 review medium 风险项，确认后合并"
+    else:
+        merge_suggestion = "可安全合并"
+
+    test_suggestions = [
+        f.suggestion for f in findings
+        if f.finding_type == "S015" or (f.title and "test" in f.title.lower())
+    ]
+
+    key_focus_points = [
+        f.title for f in findings
+        if f.severity in ("critical", "high") and f.title
+    ]
 
     return ReportResponse(
         task_id=task.id,
         summary=task.summary,
-        risk_level=task.risk_level,
+        risk_level=task.risk_level or "LOW",
+        merge_suggestion=merge_suggestion,
+        test_suggestions=test_suggestions[:5],
+        key_focus_points=key_focus_points[:10],
         findings=[FindingItem(
             id=f.id,
             file_path=f.file_path,
@@ -39,7 +75,7 @@ def get_report(task_id: int, db: Session = Depends(get_db)):
             reason=f.reason,
             suggestion=f.suggestion,
             confidence=float(f.confidence) if f.confidence else None,
-        ) for f in findings],
+        ) for f in findings if f.title],
     )
 
 
@@ -52,7 +88,7 @@ def get_task_files(task_id: int, db: Session = Depends(get_db)):
 
     files = db.query(PRChangedFile).filter(
         PRChangedFile.task_id == task_id
-    ).all()
+    ).order_by(PRChangedFile.risk_score.desc()).all()
 
     return [
         {
@@ -62,6 +98,7 @@ def get_task_files(task_id: int, db: Session = Depends(get_db)):
             "additions": f.additions,
             "deletions": f.deletions,
             "risk_level": f.risk_level,
+            "risk_score": f.risk_score,
         }
         for f in files
     ]
@@ -73,10 +110,13 @@ def get_file_findings(task_id: int, file_id: int, db: Session = Depends(get_db))
     findings = db.query(PRReviewFinding).filter(
         PRReviewFinding.task_id == task_id,
         PRReviewFinding.file_id == file_id,
-    ).order_by(
-        PRReviewFinding.severity.desc(),
-        PRReviewFinding.line_number.asc(),
     ).all()
+
+    findings.sort(
+        key=lambda f: (SEVERITY_RANK.get(f.severity.lower() if f.severity else "low", 0),
+                       f.line_number or 0),
+        reverse=True,
+    )
 
     return [
         {
