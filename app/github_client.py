@@ -145,15 +145,26 @@ class GitHubClient:
         except Exception:
             return []
 
-    def create_pr_comment(self, owner: str, repo: str, number: int, body: str) -> bool:
-        """Create a PR comment"""
+    def create_pr_comment(self, owner: str, repo: str, number: int, body: str) -> Optional[int]:
+        """Create a PR comment, returns comment id"""
         url = f"{self.base_url}/repos/{owner}/{repo}/issues/{number}/comments"
         try:
             resp = httpx.post(url, headers=self._get_headers(), json={"body": body}, timeout=30)
             resp.raise_for_status()
-            return True
+            return resp.json().get("id")
         except Exception as e:
             print(f"Failed to create PR comment: {e}")
+            return None
+
+    def update_pr_comment(self, owner: str, repo: str, comment_id: int, body: str) -> bool:
+        """Update an existing PR comment"""
+        url = f"{self.base_url}/repos/{owner}/{repo}/issues/comments/{comment_id}"
+        try:
+            resp = httpx.patch(url, headers=self._get_headers(), json={"body": body}, timeout=30)
+            resp.raise_for_status()
+            return True
+        except Exception as e:
+            print(f"Failed to update PR comment {comment_id}: {e}")
             return False
 
     def create_review_comment(self, owner: str, repo: str, number: int,
