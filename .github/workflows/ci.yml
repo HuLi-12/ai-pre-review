@@ -1,0 +1,43 @@
+name: CI
+
+on:
+  push:
+    branches: [master]
+  pull_request:
+    branches: [master]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python 3.10
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.10"
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+          pip install pytest
+
+      - name: Run tests
+        run: |
+          python -m pytest tests/ -v
+
+      - name: Check import integrity
+        run: |
+          python -c "
+          from app.diff_utils import parse_patch
+          from app.static_scanner import StaticScanner
+          from app.risk_scorer import FileRiskScorer
+          from app.confidence_calculator import calculate_confidence
+          from app.github_client import GitHubClient
+          from app.models import PRReviewTask, PRChangedFile, PRReviewFinding
+          from app.schemas import CreateTaskRequest, TaskResponse
+          from app.report_generator import ReportGenerator
+          print('All imports OK')
+          "
