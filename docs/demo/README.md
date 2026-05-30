@@ -137,7 +137,7 @@ The report page is the core of the Cockpit experience:
 If `auto_comment` was enabled, the system posts a structured comment to the PR:
 
 ```
-## 🤖 AI Code Review
+## 🤖 AI Review Cockpit
 
 **Risk Level:** HIGH
 **Merge Suggestion:** 建议修复 high 及以上风险后再合并

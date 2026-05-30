@@ -133,7 +133,7 @@ class ReportGenerator:
     def generate_github_comment(report: Report) -> str:
         """Generate a concise GitHub PR comment (high-confidence findings only)."""
         parts = []
-        parts.append("## 🤖 AI Code Review\n")
+        parts.append("## 🤖 AI Review Cockpit\n")
 
         total = sum(len(v) for v in report.findings_by_severity.values())
         if total == 0:
@@ -194,6 +194,6 @@ class ReportGenerator:
             parts.append("")
 
         parts.append("---")
-        parts.append("*完整报告请查看 AI Code Review 系统页面。*")
+        parts.append("*完整报告请查看 AI Review Cockpit。*")
 
         return "\n".join(parts)

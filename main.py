@@ -123,12 +123,15 @@ def view_report(request: Request, task_id: int):
         if task.status != "DONE":
             return RedirectResponse(url=f"/tasks/{task_id}")
 
+        SEVERITY_RANK = {"critical": 4, "high": 3, "medium": 2, "low": 1}
         findings = db.query(PRReviewFinding).filter(
             PRReviewFinding.task_id == task_id
-        ).order_by(
-            PRReviewFinding.severity.desc(),
-            PRReviewFinding.confidence.desc()
         ).all()
+        findings.sort(
+            key=lambda f: (SEVERITY_RANK.get(f.severity.lower() if f.severity else "low", 0),
+                           float(f.confidence) if f.confidence else 0),
+            reverse=True,
+        )
 
         files = db.query(PRChangedFile).filter(
             PRChangedFile.task_id == task_id

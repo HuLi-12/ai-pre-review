@@ -29,7 +29,7 @@ def get_report(task_id: int, db: Session = Depends(get_db)):
     # Sort by severity rank (not string), then confidence desc
     findings.sort(
         key=lambda f: (SEVERITY_RANK.get(f.severity.lower() if f.severity else "low", 0),
-                       -float(f.confidence) if f.confidence else 0),
+                       float(f.confidence) if f.confidence else 0),
         reverse=True,
     )
 

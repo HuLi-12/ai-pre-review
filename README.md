@@ -70,9 +70,11 @@ added_lines = [line for line in patch if line.startswith('+') and not line.start
 Not all files are equal. We score each file by path pattern, change size, and keyword to decide analysis depth:
 
 ```
-controller.py  → score 85 → deep review (full content + related files)
-README.md      → score 10 → skip (no analysis needed)
-service.py     → score 55 → normal review (patch only + summary context)
+controller.py  → score  8/15 → deep review (full content + related files)
+README.md      → score -2/15 → skip (no analysis needed)
+service.py     → score  4/15 → normal review (patch only + summary context)
+
+> Internal score range: `-2` to `15`. The UI risk bar converts this to a percentage for visual display.
 ```
 
 ### Hybrid Rule + AI Engine
