@@ -11,9 +11,9 @@ from app.models import PRReviewTask, PRChangedFile, PRReviewFinding
 from app.routers import tasks, reports
 
 app = FastAPI(
-    title="AI Code Review",
-    description="AI-powered GitHub PR review tool",
-    version="1.0.0",
+    title="AI Review Cockpit",
+    description="Evidence-driven PR risk analysis cockpit — hybrid rule + AI review engine",
+    version="1.2.0",
 )
 
 # Static files
