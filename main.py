@@ -8,6 +8,7 @@ from sqlalchemy.orm import Session
 
 from config import settings
 from app.database import init_db, get_db, SessionLocal
+from app.golden_evaluation import run_golden_evaluation
 from app.models import PRReviewTask, PRChangedFile, PRReviewFinding
 from app.routers import evaluation, tasks, reports
 
@@ -41,7 +42,10 @@ templates.env.filters["from_json"] = lambda s: json.loads(s) if s else []
 
 @app.get("/", response_class=HTMLResponse)
 def index(request: Request):
-    return templates.TemplateResponse("index.html", {"request": request})
+    return templates.TemplateResponse("index.html", {
+        "request": request,
+        "golden_eval": run_golden_evaluation(),
+    })
 
 
 @app.get("/tasks", response_class=HTMLResponse)
