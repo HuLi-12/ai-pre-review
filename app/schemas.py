@@ -43,6 +43,10 @@ class ReportResponse(BaseModel):
     findings: List[FindingItem] = []
     test_suggestions: List[str] = []
     key_focus_points: List[str] = []
+    raw_finding_count: int = 0
+    deduped_finding_count: int = 0
+    visible_finding_count: int = 0
+    github_ready_count: int = 0
 
     class Config:
         from_attributes = True

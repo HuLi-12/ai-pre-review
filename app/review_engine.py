@@ -25,6 +25,10 @@ class ReviewResult:
     merge_suggestion: str = ""
     test_suggestions: List[str] = field(default_factory=list)
     key_focus_points: List[str] = field(default_factory=list)
+    raw_finding_count: int = 0
+    deduped_finding_count: int = 0
+    visible_finding_count: int = 0
+    github_ready_count: int = 0
 
 
 class ReviewEngine:
@@ -79,6 +83,13 @@ class ReviewEngine:
             await self._update_progress(task, db, "MERGING_RESULTS", 85)
             merged = self._merge_findings(file_findings, cross_findings, rule_findings)
 
+            # Persist real pipeline metrics
+            counts = getattr(self, '_pipeline_counts', {})
+            task.raw_finding_count = counts.get("raw", 0)
+            task.deduped_finding_count = counts.get("deduped", 0)
+            task.visible_finding_count = counts.get("visible", len(merged))
+            task.github_ready_count = counts.get("github_ready", 0)
+
             # ---- Stage 6: Generate Report ----
             await self._update_progress(task, db, "GENERATING_REPORT", 95)
             report = self.report_gen.generate(summary, merged)
@@ -95,6 +106,10 @@ class ReviewEngine:
             result.merge_suggestion = report.merge_suggestion
             result.test_suggestions = report.test_suggestions
             result.key_focus_points = report.key_focus_points
+            result.raw_finding_count = counts.get("raw", 0)
+            result.deduped_finding_count = counts.get("deduped", 0)
+            result.visible_finding_count = counts.get("visible", len(merged))
+            result.github_ready_count = counts.get("github_ready", 0)
 
             task.summary = report.markdown_summary
             task.risk_level = report.risk_level
@@ -494,6 +509,16 @@ class ReviewEngine:
 
         # ---- Confidence threshold filtering ----
         filtered = [f for f in final_findings if should_show_in_report(f.get("confidence", 0) or 0)]
+
+        # Save pipeline counts for cockpit metrics
+        self._pipeline_counts = {
+            "raw": len(merged),
+            "deduped": len(final_findings),
+            "visible": len(filtered),
+            "github_ready": sum(1 for f in filtered
+                                if should_comment_to_github(f.get("confidence", 0) or 0,
+                                                            f.get("severity", "low"))),
+        }
 
         # Sort by severity then confidence
         filtered.sort(

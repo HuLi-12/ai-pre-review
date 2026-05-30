@@ -20,6 +20,10 @@ class PRReviewTask(Base):
     progress = Column(Integer, default=0)
     current_step = Column(String(128), nullable=True)
     error_message = Column(Text, nullable=True)
+    raw_finding_count = Column(Integer, default=0)
+    deduped_finding_count = Column(Integer, default=0)
+    visible_finding_count = Column(Integer, default=0)
+    github_ready_count = Column(Integer, default=0)
     created_at = Column(DateTime, default=datetime.datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.datetime.utcnow, onupdate=datetime.datetime.utcnow)
 
