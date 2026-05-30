@@ -8,6 +8,7 @@ API_ENDPOINT_PATTERN = (
     r'@(?:Post|Get|Put|Delete|Patch|RequestMapping)\b|'
     r'@\s*(?:app|router|api|[\w_]*router)\.(?:get|post|put|delete|patch|route)\s*\('
 )
+DOCUMENTATION_EXTENSIONS = (".md", ".markdown", ".rst", ".txt", ".adoc")
 
 
 @dataclass
@@ -110,6 +111,9 @@ class StaticScanner:
 
         This is the primary entry point — it only flags issues in NEW code.
         """
+        if file_path.lower().endswith(DOCUMENTATION_EXTENSIONS):
+            return []
+
         findings = []
         if not patch:
             return findings

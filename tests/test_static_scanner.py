@@ -97,6 +97,19 @@ def test_s009_fastapi_endpoint_without_validation_detected():
     assert s009[0].severity == "medium"
 
 
+def test_static_scanner_skips_documentation_code_examples():
+    scanner = StaticScanner()
+    patch = """@@ -1,3 +1,8 @@
++```python
++@app.post("/users")
++def create_user(name: str):
++    return {"name": name}
++```
+"""
+    findings = scanner.scan_patch("docs/advanced.md", patch)
+    assert findings == []
+
+
 def test_unchanged_old_code_not_scanned():
     """Patch-only scanning MUST NOT flag issues in unchanged lines."""
     scanner = StaticScanner()

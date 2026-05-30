@@ -1,4 +1,5 @@
 import uvicorn
+from contextlib import asynccontextmanager
 from fastapi import FastAPI, Request
 from fastapi.responses import HTMLResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
@@ -10,10 +11,18 @@ from app.database import init_db, get_db, SessionLocal
 from app.models import PRReviewTask, PRChangedFile, PRReviewFinding
 from app.routers import tasks, reports
 
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    init_db()
+    yield
+
+
 app = FastAPI(
     title="AI Review Cockpit",
     description="Evidence-driven PR risk analysis cockpit — hybrid rule + AI review engine",
     version="1.2.0",
+    lifespan=lifespan,
 )
 
 # Static files
@@ -27,11 +36,6 @@ app.include_router(reports.router)
 templates = Jinja2Templates(directory="templates")
 import json
 templates.env.filters["from_json"] = lambda s: json.loads(s) if s else []
-
-
-@app.on_event("startup")
-def startup():
-    init_db()
 
 
 @app.get("/", response_class=HTMLResponse)

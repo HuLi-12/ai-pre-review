@@ -9,16 +9,21 @@ class AIClient:
     """AI client wrapper supporting OpenAI-compatible APIs."""
 
     def __init__(self, api_key: Optional[str] = None, api_base: Optional[str] = None):
-        self.client = OpenAI(
-            api_key=api_key or settings.ai_api_key,
-            base_url=api_base or settings.ai_api_base,
-        )
+        self.api_key = settings.ai_api_key if api_key is None else api_key
+        self.client = None
+        if self.api_key:
+            self.client = OpenAI(
+                api_key=self.api_key,
+                base_url=api_base or settings.ai_api_base,
+            )
         self.model = settings.ai_model
         self.deep_model = settings.ai_deep_model
 
     def _call_llm(self, system_prompt: str, user_prompt: str,
                   model: Optional[str] = None, temperature: float = 0.1) -> str:
         """Call LLM with prompts and return text response"""
+        if not self.client:
+            return ""
         resp = self.client.chat.completions.create(
             model=model or self.model,
             temperature=temperature,
@@ -144,16 +149,24 @@ Output JSON format:
     def summarize_pr(self, pr_title: str, pr_description: str,
                      commit_messages: str, changed_files_summary: str) -> dict:
         """Stage 1: PR overall understanding and summary"""
+        fallback = self._fallback_summary(pr_title, changed_files_summary)
+        if not self.client:
+            return fallback
+
         user_prompt = f"""PR Title: {pr_title}
 PR Description: {pr_description}
 Commit Messages: {commit_messages}
 Changed Files:
 {changed_files_summary}"""
-        return self._call_llm_json(self.PR_SUMMARY_SYSTEM_PROMPT, user_prompt)
+        return self._call_llm_json(self.PR_SUMMARY_SYSTEM_PROMPT, user_prompt) or fallback
 
     def review_file(self, file_path: str, diff: str, full_content: str,
                     related_context: str, rule_findings: str) -> dict:
         """Stage 2: Analyze a single changed file"""
+        fallback = {"file_summary": "AI review unavailable; static rules were used.", "findings": []}
+        if not self.client:
+            return fallback
+
         user_prompt = f"""File: {file_path}
 
 Diff:
@@ -171,13 +184,34 @@ Related Context:
 
 Static Rule Findings:
 {rule_findings}"""
-        return self._call_llm_json(self.FILE_REVIEW_SYSTEM_PROMPT, user_prompt, model=self.deep_model)
+        return self._call_llm_json(self.FILE_REVIEW_SYSTEM_PROMPT, user_prompt, model=self.deep_model) or fallback
 
     def cross_file_analysis(self, file_contexts: Dict[str, str]) -> dict:
         """Stage 3: Cross-file consistency analysis"""
+        fallback = {"findings": []}
+        if not self.client:
+            return fallback
+
         context_parts = []
         for file_path, content in file_contexts.items():
             context_parts.append(f"=== {file_path} ===\n{content[:3000]}")
         user_prompt = "Analyze the following files for cross-file consistency issues:\n\n" + \
                       "\n\n".join(context_parts)
-        return self._call_llm_json(self.CROSS_FILE_SYSTEM_PROMPT, user_prompt, model=self.deep_model)
+        return self._call_llm_json(self.CROSS_FILE_SYSTEM_PROMPT, user_prompt, model=self.deep_model) or fallback
+
+    @staticmethod
+    def _fallback_summary(pr_title: str, changed_files_summary: str) -> dict:
+        focus_files = []
+        for line in changed_files_summary.splitlines():
+            line = line.strip()
+            if not line:
+                continue
+            focus_files.append(line.split(" ", 1)[0])
+
+        return {
+            "one_line_summary": pr_title or "AI summary unavailable; static analysis completed.",
+            "module_changes": {"changed_files": focus_files[:20]} if focus_files else {},
+            "business_impact": ["AI model unavailable; report is based on static rules and file risk signals."],
+            "risk_modules": [],
+            "focus_files": focus_files[:20],
+        }
