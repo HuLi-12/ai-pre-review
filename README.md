@@ -243,6 +243,28 @@ docs/demo/                       # Demo walkthrough
 
 ---
 
+---
+
+## Final Project Highlights
+
+**AI Review Cockpit** delivers an evidence-driven, decision-oriented AI code review system built in 16+ staged PRs over structured development sprints.
+
+| Area | Achievement |
+|------|------------|
+| Pipeline | 7-stage analysis: fetch → context → static scan → AI summary → AI file review → cross-file → merge |
+| Rules | 15 deterministic rules (S001–S015) scanning only patch-added lines |
+| AI Integration | LLM-powered PR summary, per-file deep/normal review, cross-file consistency checks |
+| Noise Control | Changed-line analysis + confidence gate (3 thresholds) + signature-based dedup |
+| UX | Cockpit dashboard with metric cards, risk map, pipeline bar, keyboard shortcuts, evidence chain |
+| Tests | 28 unit tests across 5 suites, CI passing on Python 3.10 |
+| Frontend Future | Independent shadcn/ui React prototype at `frontend-prototype/` |
+
+**Key differentiator:** Not a "diff-to-LLM" wrapper. Every finding has a confidence score, an evidence trace, and a visibility gate — turning AI review from a suggestion list into a merge decision tool.
+
+Full project review: [`docs/final-review.md`](docs/final-review.md) · Evaluation mapping: [`docs/evaluation-mapping.md`](docs/evaluation-mapping.md) · Demo walkthrough: [`docs/demo/README.md`](docs/demo/README.md)
+
+---
+
 ## Tech Stack
 
 Python 3.10+ · FastAPI · SQLAlchemy · SQLite · Jinja2 · Bootstrap 5
