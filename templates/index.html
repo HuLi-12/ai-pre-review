@@ -1,63 +1,335 @@
 {% extends "base.html" %}
-{% block title %}AI Code Review - 代码评审工具{% endblock %}
+{% block title %}AI Review Cockpit - 风险驾驶舱{% endblock %}
 
 {% block content %}
-<div class="row justify-content-center">
-    <div class="col-lg-8">
-        <div class="card shadow-sm border-0">
-            <div class="card-body p-5 text-center">
-                <i class="bi bi-robot display-1 text-primary mb-3"></i>
-                <h2 class="mb-2">AI 代码评审工具</h2>
-                <p class="text-muted mb-4">输入 GitHub Pull Request 链接，自动生成 AI 代码评审报告</p>
-
-                <form id="reviewForm" class="mt-4">
-                    <div class="input-group input-group-lg mb-3">
-                        <span class="input-group-text bg-white"><i class="bi bi-github"></i></span>
-                        <input type="url" class="form-control" id="prUrl"
-                               placeholder="https://github.com/owner/repo/pull/123"
-                               required>
-                    </div>
-
-                    <div class="row g-2 mb-3">
-                        <div class="col-md-6">
-                            <div class="form-check text-start">
-                                <input class="form-check-input" type="checkbox" id="autoComment">
-                                <label class="form-check-label" for="autoComment">
-                                    自动评论到 GitHub PR
-                                </label>
-                            </div>
-                        </div>
-                        <div class="col-md-6">
-                            <input type="password" class="form-control" id="githubToken"
-                                   placeholder="GitHub Token (可选，不传则使用全局配置)">
-                        </div>
-                    </div>
-
-                    <button type="submit" class="btn btn-primary btn-lg px-5" id="submitBtn">
-                        <i class="bi bi-play-fill"></i> 开始评审
-                    </button>
-                </form>
-            </div>
+<!-- Hero -->
+<div class="row align-items-center mb-5">
+    <div class="col-lg-7 mb-4 mb-lg-0">
+        <div class="mb-3">
+            <span class="badge bg-primary bg-opacity-10 text-primary border border-primary border-opacity-25 px-3 py-2 rounded-pill">
+                <i class="bi bi-lightning-fill me-1"></i> Evidence-driven PR Review
+            </span>
         </div>
+        <h1 class="display-4 fw-bold mb-3" style="line-height: 1.2;">
+            <span class="text-gradient">AI Review Cockpit</span>
+        </h1>
+        <p class="fs-5 mb-4" style="color: var(--cockpit-muted); max-width: 540px;">
+            Not just another AI code reviewer. We analyze changed lines, score file risk,
+            combine static rules with AI reasoning, and only surface findings with evidence and confidence.
+        </p>
+        <p class="mb-4" style="color: #475569;">
+            <i class="bi bi-arrow-right-circle me-1" style="color: var(--cockpit-primary);"></i>
+            基于证据链的低噪声 PR 风险驾驶舱 — 不是把 diff 丢给大模型，而是先解析变更行、计算文件风险、融合规则与 AI 判断。
+        </p>
 
-        <div class="card shadow-sm border-0 mt-4 d-none" id="resultCard">
-            <div class="card-body text-center p-4">
-                <div class="spinner-border text-primary mb-3" role="status" id="loadingSpinner">
+        <form id="reviewForm">
+            <div class="cockpit-card p-4 mb-3">
+                <div class="mb-3">
+                    <label class="form-label small text-uppercase" style="color: var(--cockpit-muted); letter-spacing: 0.5px;">
+                        <i class="bi bi-github me-1"></i> GitHub Pull Request URL
+                    </label>
+                    <input type="url" class="form-control form-control-lg bg-transparent" id="prUrl"
+                           placeholder="https://github.com/owner/repo/pull/123"
+                           style="border-color: var(--cockpit-border); color: var(--cockpit-text);"
+                           required>
+                </div>
+                <div class="row g-2 mb-3">
+                    <div class="col-md-6">
+                        <div class="form-check">
+                            <input class="form-check-input" type="checkbox" id="autoComment">
+                            <label class="form-check-label small" for="autoComment" style="color: var(--cockpit-muted);">
+                                Auto-comment to GitHub PR
+                            </label>
+                        </div>
+                    </div>
+                    <div class="col-md-6">
+                        <input type="password" class="form-control form-control-sm bg-transparent" id="githubToken"
+                               placeholder="GitHub Token (optional)"
+                               style="border-color: var(--cockpit-border); color: var(--cockpit-text); font-size: 0.8rem;">
+                    </div>
+                </div>
+                <button type="submit" class="btn btn-primary px-5 py-2" id="submitBtn" style="background: linear-gradient(135deg, #38BDF8, #818CF8); border: none; font-weight: 600;">
+                    <i class="bi bi-shield-check me-2"></i>Start Review
+                </button>
+            </div>
+        </form>
+
+        <div class="cockpit-card p-4 d-none" id="resultCard">
+            <div class="d-flex align-items-center mb-3">
+                <div class="spinner-border text-primary me-3" role="status" id="loadingSpinner" style="width: 1.5rem; height: 1.5rem;">
                     <span class="visually-hidden">Loading...</span>
                 </div>
-                <h5 id="resultTitle">任务已创建</h5>
-                <p class="text-muted mb-2" id="resultStatus">正在获取 PR 信息...</p>
-                <div class="progress mb-3 d-none" id="progressBar" style="height: 8px;">
-                    <div class="progress-bar progress-bar-striped progress-bar-animated" role="progressbar" id="progressBarFill"></div>
+                <div>
+                    <h6 class="mb-0" id="resultTitle">Review in progress</h6>
+                    <small class="text-muted" id="resultStatus">Starting analysis...</small>
                 </div>
-                <a href="#" id="viewReportLink" class="btn btn-success d-none">
-                    <i class="bi bi-file-text"></i> 查看评审报告
+            </div>
+            <div class="progress mb-3" style="height: 4px; background: rgba(148,163,184,0.15);">
+                <div class="progress-bar" role="progressbar" id="progressBarFill" style="background: linear-gradient(135deg, #38BDF8, #818CF8); width: 0%;"></div>
+            </div>
+            <div class="d-flex gap-2">
+                <a href="#" id="viewReportLink" class="btn btn-success btn-sm d-none">
+                    <i class="bi bi-file-text"></i> View Report
                 </a>
-                <p class="mt-2 mb-0">
-                    <a href="#" id="taskLink" class="text-decoration-none">查看任务进度</a>
-                </p>
+                <a href="#" id="taskLink" class="btn btn-outline-light btn-sm">View Progress</a>
             </div>
         </div>
+    </div>
+
+    <div class="col-lg-5">
+        <div class="cockpit-card p-4 glow-primary">
+            <div class="d-flex justify-content-between align-items-center mb-3">
+                <span class="small text-uppercase" style="color: var(--cockpit-muted); letter-spacing: 1px;">Live Preview</span>
+                <span class="badge bg-success bg-opacity-10 text-success border border-success border-opacity-25 rounded-pill px-2 py-1" style="font-size: 0.65rem;">
+                    <i class="bi bi-dot me-1"></i> Demo
+                </span>
+            </div>
+            <div class="row g-3 mb-3">
+                <div class="col-6">
+                    <div class="p-3 rounded" style="background: rgba(239,68,68,0.1); border: 1px solid rgba(239,68,68,0.2);">
+                        <div class="small text-uppercase mb-1" style="color: var(--cockpit-danger); letter-spacing: 0.5px;">Risk Level</div>
+                        <div class="fs-3 fw-bold" style="color: var(--cockpit-danger);">HIGH</div>
+                    </div>
+                </div>
+                <div class="col-6">
+                    <div class="p-3 rounded" style="background: rgba(56,189,248,0.1); border: 1px solid rgba(56,189,248,0.2);">
+                        <div class="small text-uppercase mb-1" style="color: var(--cockpit-primary); letter-spacing: 0.5px;">Findings</div>
+                        <div class="fs-3 fw-bold" style="color: var(--cockpit-primary);">6</div>
+                    </div>
+                </div>
+                <div class="col-6">
+                    <div class="p-3 rounded" style="background: rgba(245,158,11,0.1); border: 1px solid rgba(245,158,11,0.2);">
+                        <div class="small text-uppercase mb-1" style="color: var(--cockpit-warning); letter-spacing: 0.5px;">Noise Filter</div>
+                        <div class="fs-3 fw-bold" style="color: var(--cockpit-warning);">67%</div>
+                        <div style="font-size: 0.7rem; color: var(--cockpit-muted);">18 raw → 6 kept</div>
+                    </div>
+                </div>
+                <div class="col-6">
+                    <div class="p-3 rounded" style="background: rgba(34,197,94,0.1); border: 1px solid rgba(34,197,94,0.2);">
+                        <div class="small text-uppercase mb-1" style="color: var(--cockpit-success); letter-spacing: 0.5px;">GitHub Ready</div>
+                        <div class="fs-3 fw-bold" style="color: var(--cockpit-success);">2</div>
+                        <div style="font-size: 0.7rem; color: var(--cockpit-muted);">conf ≥ 0.80</div>
+                    </div>
+                </div>
+            </div>
+            <div class="d-flex justify-content-between py-2 px-3 rounded" style="background: rgba(148,163,184,0.06);">
+                <span style="color: var(--cockpit-muted); font-size: 0.85rem;">Merge Decision</span>
+                <span style="color: var(--cockpit-danger); font-weight: 600; font-size: 0.85rem;"><i class="bi bi-exclamation-triangle me-1"></i>Fix before merge</span>
+            </div>
+            <div class="mt-3 pt-3" style="border-top: 1px solid var(--cockpit-border);">
+                <div class="small" style="color: var(--cockpit-muted);">
+                    <i class="bi bi-diagram-3 me-1"></i> Pipeline:
+                    <span class="text-light">18 raw</span>
+                    <i class="bi bi-chevron-right mx-1" style="font-size: 0.6rem;"></i>
+                    <span class="text-light">9 deduped</span>
+                    <i class="bi bi-chevron-right mx-1" style="font-size: 0.6rem;"></i>
+                    <span class="text-light">6 visible</span>
+                    <i class="bi bi-chevron-right mx-1" style="font-size: 0.6rem;"></i>
+                    <span class="text-light">2 comment-ready</span>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Four-Step Process -->
+<div class="row g-3 mb-5">
+    <div class="col-12 mb-2">
+        <h5 class="fw-semibold"><i class="bi bi-diagram-3 me-2" style="color: var(--cockpit-primary);"></i>How It Works</h5>
+    </div>
+    <div class="col-md-3">
+        <div class="cockpit-card p-4 h-100 text-center">
+            <div class="d-inline-flex align-items-center justify-content-center rounded-circle mb-3" style="width: 48px; height: 48px; background: rgba(56,189,248,0.1); border: 1px solid rgba(56,189,248,0.2);">
+                <span class="fw-bold" style="color: var(--cockpit-primary);">01</span>
+            </div>
+            <h6 class="fw-semibold mb-2">Parse PR</h6>
+            <small style="color: var(--cockpit-muted);">Fetch GitHub PR diff, file list, and commit metadata via API</small>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="cockpit-card p-4 h-100 text-center">
+            <div class="d-inline-flex align-items-center justify-content-center rounded-circle mb-3" style="width: 48px; height: 48px; background: rgba(56,189,248,0.1); border: 1px solid rgba(56,189,248,0.2);">
+                <span class="fw-bold" style="color: var(--cockpit-primary);">02</span>
+            </div>
+            <h6 class="fw-semibold mb-2">Focus Changes</h6>
+            <small style="color: var(--cockpit-muted);">Parse unified diff, extract only added/modified lines — skip unchanged code</small>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="cockpit-card p-4 h-100 text-center">
+            <div class="d-inline-flex align-items-center justify-content-center rounded-circle mb-3" style="width: 48px; height: 48px; background: rgba(56,189,248,0.1); border: 1px solid rgba(56,189,248,0.2);">
+                <span class="fw-bold" style="color: var(--cockpit-primary);">03</span>
+            </div>
+            <h6 class="fw-semibold mb-2">Score Risk</h6>
+            <small style="color: var(--cockpit-muted);">Score each file by path pattern, change size, and risky keywords</small>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="cockpit-card p-4 h-100 text-center">
+            <div class="d-inline-flex align-items-center justify-content-center rounded-circle mb-3" style="width: 48px; height: 48px; background: rgba(56,189,248,0.1); border: 1px solid rgba(56,189,248,0.2);">
+                <span class="fw-bold" style="color: var(--cockpit-primary);">04</span>
+            </div>
+            <h6 class="fw-semibold mb-2">Review with Confidence</h6>
+            <small style="color: var(--cockpit-muted);">Rule + AI hybrid engine, signature dedup, confidence gate filtering</small>
+        </div>
+    </div>
+</div>
+
+<!-- Feature Cards -->
+<div class="row g-3 mb-5">
+    <div class="col-12 mb-2">
+        <h5 class="fw-semibold"><i class="bi bi-stars me-2" style="color: var(--cockpit-primary);"></i>What Makes Review Cockpit Different</h5>
+    </div>
+    <div class="col-md-4">
+        <div class="cockpit-card p-4 h-100">
+            <div class="d-flex align-items-center mb-3">
+                <div class="d-inline-flex align-items-center justify-content-center rounded me-3" style="width: 36px; height: 36px; background: rgba(56,189,248,0.1);">
+                    <i class="bi bi-file-diff" style="color: var(--cockpit-primary);"></i>
+                </div>
+                <h6 class="fw-semibold mb-0">Changed-Line Review</h6>
+            </div>
+            <small style="color: var(--cockpit-muted);">
+                Traditional AI review scans old code and flags pre-existing issues as if they were new.
+                We only analyze <strong style="color: var(--cockpit-text);">added and modified lines</strong> in the patch —
+                no legacy noise, no false attribution.
+            </small>
+            <div class="mt-2">
+                <span class="badge bg-success bg-opacity-10 text-success border border-success border-opacity-25" style="font-size: 0.65rem;">只审本次改动，不翻旧账</span>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-4">
+        <div class="cockpit-card p-4 h-100">
+            <div class="d-flex align-items-center mb-3">
+                <div class="d-inline-flex align-items-center justify-content-center rounded me-3" style="width: 36px; height: 36px; background: rgba(245,158,11,0.1);">
+                    <i class="bi bi-speedometer2" style="color: var(--cockpit-warning);"></i>
+                </div>
+                <h6 class="fw-semibold mb-0">Risk-Aware Routing</h6>
+            </div>
+            <small style="color: var(--cockpit-muted);">
+                Not all files are equal. We score each file by <strong style="color: var(--cockpit-text);">path pattern, change size, and keyword</strong>
+                to decide analysis depth — <span style="color: var(--cockpit-success);">skip</span>,
+                <span style="color: var(--cockpit-warning);">normal</span>, or
+                <span style="color: var(--cockpit-danger);">deep</span> review.
+            </small>
+            <div class="mt-2">
+                <span class="badge bg-warning bg-opacity-10 text-warning border border-warning border-opacity-25" style="font-size: 0.65rem;">高风险深析，低风险跳过</span>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-4">
+        <div class="cockpit-card p-4 h-100">
+            <div class="d-flex align-items-center mb-3">
+                <div class="d-inline-flex align-items-center justify-content-center rounded me-3" style="width: 36px; height: 36px; background: rgba(99,102,241,0.1);">
+                    <i class="bi bi-cpu" style="color: #818CF8;"></i>
+                </div>
+                <h6 class="fw-semibold mb-0">Hybrid Rule + AI Engine</h6>
+            </div>
+            <small style="color: var(--cockpit-muted);">
+                <strong style="color: var(--cockpit-text);">15 static rules</strong> catch deterministic issues (passwords, unsafe SQL).
+                <strong style="color: var(--cockpit-text);">AI</strong> catches what rules cannot understand (missing null check, transaction risk).
+                Both agree → confidence bonus.
+            </small>
+            <div class="mt-2">
+                <span class="badge bg-info bg-opacity-10 text-info border border-info border-opacity-25" style="font-size: 0.65rem;">规则抓确定性问题，AI 理解上下文</span>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-4">
+        <div class="cockpit-card p-4 h-100">
+            <div class="d-flex align-items-center mb-3">
+                <div class="d-inline-flex align-items-center justify-content-center rounded me-3" style="width: 36px; height: 36px; background: rgba(34,197,94,0.1);">
+                    <i class="bi bi-shield-check" style="color: var(--cockpit-success);"></i>
+                </div>
+                <h6 class="fw-semibold mb-0">Confidence Gate</h6>
+            </div>
+            <small style="color: var(--cockpit-muted);">
+                Every finding has a <strong style="color: var(--cockpit-text);">confidence score</strong>.
+                Low confidence (< 0.60) is hidden by default. High confidence (≥ 0.80) is GitHub comment-ready.
+                You decide what to trust.
+            </small>
+            <div class="mt-2">
+                <span class="badge bg-success bg-opacity-10 text-success border border-success border-opacity-25" style="font-size: 0.65rem;">低置信度隐藏，高置信度可回写</span>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-4">
+        <div class="cockpit-card p-4 h-100">
+            <div class="d-flex align-items-center mb-3">
+                <div class="d-inline-flex align-items-center justify-content-center rounded me-3" style="width: 36px; height: 36px; background: rgba(239,68,68,0.1);">
+                    <i class="bi bi-github" style="color: var(--cockpit-danger);"></i>
+                </div>
+                <h6 class="fw-semibold mb-0">GitHub-Native Comment</h6>
+            </div>
+            <small style="color: var(--cockpit-muted);">
+                High-confidence findings can be <strong style="color: var(--cockpit-text);">auto-posted</strong> to the PR conversation.
+                Re-running updates the existing comment — no spam.
+                Line-level review comments supported for precise feedback.
+            </small>
+            <div class="mt-2">
+                <span class="badge bg-danger bg-opacity-10 text-danger border border-danger border-opacity-25" style="font-size: 0.65rem;">幂等更新，不重复评论</span>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-4">
+        <div class="cockpit-card p-4 h-100">
+            <div class="d-flex align-items-center mb-3">
+                <div class="d-inline-flex align-items-center justify-content-center rounded me-3" style="width: 36px; height: 36px; background: rgba(148,163,184,0.1);">
+                    <i class="bi bi-diagram-2" style="color: var(--cockpit-muted);"></i>
+                </div>
+                <h6 class="fw-semibold mb-0">Signature Dedup</h6>
+            </div>
+            <small style="color: var(--cockpit-muted);">
+                Merges duplicate findings by <strong style="color: var(--cockpit-text);">file + type + line bucket + title similarity</strong>.
+                Same issue caught by both static rule and AI? Automatically merged with an agreement bonus to confidence.
+            </small>
+            <div class="mt-2">
+                <span class="badge bg-secondary bg-opacity-10 text-secondary border border-secondary border-opacity-25" style="font-size: 0.65rem;">签名去重，避免重复建议</span>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Demo Scenarios -->
+<div class="row g-3 mb-4">
+    <div class="col-12 mb-2">
+        <h5 class="fw-semibold"><i class="bi bi-rocket-takeoff me-2" style="color: var(--cockpit-primary);"></i>Quick Demo Scenarios</h5>
+    </div>
+    <div class="col-md-4">
+        <a href="/rules#S001" class="text-decoration-none">
+            <div class="cockpit-card p-4 h-100">
+                <div class="d-flex justify-content-between align-items-start mb-2">
+                    <span class="badge bg-success">LOW</span>
+                    <i class="bi bi-arrow-right" style="color: var(--cockpit-muted);"></i>
+                </div>
+                <h6 class="fw-semibold mb-1">Documentation Only</h6>
+                <small style="color: var(--cockpit-muted);">README changes only — zero findings, safe merge. Review rules to understand what we check.</small>
+            </div>
+        </a>
+    </div>
+    <div class="col-md-4">
+        <a href="/rules#S015" class="text-decoration-none">
+            <div class="cockpit-card p-4 h-100">
+                <div class="d-flex justify-content-between align-items-start mb-2">
+                    <span class="badge badge-high">MEDIUM</span>
+                    <i class="bi bi-arrow-right" style="color: var(--cockpit-muted);"></i>
+                </div>
+                <h6 class="fw-semibold mb-1">Business Logic Change</h6>
+                <small style="color: var(--cockpit-muted);">Service changes without tests — S015 test gap flagged. See how we detect missing test coverage.</small>
+            </div>
+        </a>
+    </div>
+    <div class="col-md-4">
+        <a href="/rules#S005" class="text-decoration-none">
+            <div class="cockpit-card p-4 h-100" style="border-color: rgba(239,68,68,0.3);">
+                <div class="d-flex justify-content-between align-items-start mb-2">
+                    <span class="badge bg-danger">HIGH</span>
+                    <i class="bi bi-arrow-right" style="color: var(--cockpit-muted);"></i>
+                </div>
+                <h6 class="fw-semibold mb-1">Security Risk Pattern</h6>
+                <small style="color: var(--cockpit-muted);">Hardcoded passwords, unsafe SQL, N+1 loops — S005/S014 visible at confidence 0.85.</small>
+            </div>
+        </a>
     </div>
 </div>
 {% endblock %}
@@ -68,7 +340,7 @@ document.getElementById('reviewForm').addEventListener('submit', async function(
     e.preventDefault();
     const btn = document.getElementById('submitBtn');
     btn.disabled = true;
-    btn.innerHTML = '<span class="spinner-border spinner-border-sm"></span> 提交中...';
+    btn.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span> Starting Review...';
 
     try {
         const resp = await fetch('/api/tasks', {
@@ -83,33 +355,30 @@ document.getElementById('reviewForm').addEventListener('submit', async function(
 
         if (!resp.ok) {
             const err = await resp.json();
-            alert('创建任务失败: ' + (err.detail || '未知错误'));
+            alert('Failed to create task: ' + (err.detail || 'Unknown error'));
             return;
         }
 
         const data = await resp.json();
         const taskLink = document.getElementById('taskLink');
         taskLink.href = `/tasks/${data.task_id}`;
-        taskLink.textContent = `查看任务 #${data.task_id} 进度`;
+        taskLink.textContent = `View Task #${data.task_id}`;
 
         document.getElementById('resultCard').classList.remove('d-none');
         document.getElementById('viewReportLink').classList.add('d-none');
 
-        // Start polling
         pollTask(data.task_id);
     } catch (err) {
-        alert('网络错误: ' + err.message);
+        alert('Network error: ' + err.message);
     } finally {
         btn.disabled = false;
-        btn.innerHTML = '<i class="bi bi-play-fill"></i> 开始评审';
+        btn.innerHTML = '<i class="bi bi-shield-check me-2"></i>Start Review';
     }
 });
 
 async function pollTask(taskId) {
     const statusEl = document.getElementById('resultStatus');
-    const progressBar = document.getElementById('progressBar');
     const progressFill = document.getElementById('progressBarFill');
-    const spinner = document.getElementById('loadingSpinner');
     const viewReportLink = document.getElementById('viewReportLink');
 
     const interval = setInterval(async () => {
@@ -117,24 +386,19 @@ async function pollTask(taskId) {
             const resp = await fetch(`/api/tasks/${taskId}`);
             const data = await resp.json();
 
-            statusEl.textContent = `状态: ${data.status}`;
-            progressBar.classList.remove('d-none');
+            statusEl.textContent = `Status: ${data.status}`;
             progressFill.style.width = (data.progress || 0) + '%';
 
             if (data.status === 'DONE') {
                 clearInterval(interval);
-                spinner.classList.remove('active');
-                spinner.classList.add('d-none');
-                statusEl.textContent = '✅ 评审完成！';
-                progressFill.classList.remove('progress-bar-animated');
+                document.getElementById('loadingSpinner').classList.add('d-none');
+                statusEl.textContent = '✅ Review complete';
                 viewReportLink.href = `/tasks/${taskId}/report`;
                 viewReportLink.classList.remove('d-none');
             } else if (data.status === 'FAILED') {
                 clearInterval(interval);
-                spinner.classList.remove('active');
-                spinner.classList.add('d-none');
-                statusEl.textContent = '❌ 评审失败';
-                progressFill.classList.remove('progress-bar-animated');
+                document.getElementById('loadingSpinner').classList.add('d-none');
+                statusEl.textContent = '❌ Review failed';
             }
         } catch (e) {
             console.error('Poll error:', e);
