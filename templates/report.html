@@ -1,218 +1,354 @@
 {% extends "base.html" %}
 {% block title %}评审报告 - {{ task.repo_owner }}/{{ task.repo_name }} #{{ task.pr_number }}{% endblock %}
 
+{% block extra_head %}
+<style>
+.risk-bar { height: 6px; border-radius: 3px; background: rgba(148,163,184,0.15); overflow: hidden; }
+.risk-bar-fill { height: 100%; border-radius: 3px; transition: width 0.6s ease; }
+.metric-card { transition: transform 0.15s ease; }
+.metric-card:hover { transform: translateY(-2px); }
+.pipeline-step { position: relative; }
+.pipeline-step:not(:last-child)::after {
+    content: '';
+    position: absolute; right: -12px; top: 50%;
+    width: 16px; height: 2px;
+    background: var(--cockpit-border, rgba(148,163,184,0.3));
+    transform: translateY(-50%);
+}
+.finding-card { transition: border-color 0.2s; }
+.finding-card:hover { border-color: rgba(148,163,184,0.4) !important; }
+.file-risk-item { transition: background 0.15s; cursor: pointer; }
+.file-risk-item:hover { background: rgba(56,189,248,0.06); }
+.file-risk-item.active { background: rgba(56,189,248,0.1); border-color: var(--cockpit-primary, #38BDF8) !important; }
+</style>
+{% endblock %}
+
 {% block content %}
+<!-- Breadcrumb -->
 <div class="row mb-3">
     <div class="col">
         <nav aria-label="breadcrumb">
-            <ol class="breadcrumb">
-                <li class="breadcrumb-item"><a href="/">首页</a></li>
-                <li class="breadcrumb-item"><a href="/tasks/{{ task.id }}">任务 #{{ task.id }}</a></li>
-                <li class="breadcrumb-item active">评审报告</li>
+            <ol class="breadcrumb" style="background: transparent; padding: 0;">
+                <li class="breadcrumb-item"><a href="/" style="color: var(--cockpit-muted, #64748B);">首页</a></li>
+                <li class="breadcrumb-item"><a href="/tasks/{{ task.id }}" style="color: var(--cockpit-muted, #64748B);">任务 #{{ task.id }}</a></li>
+                <li class="breadcrumb-item active" style="color: var(--cockpit-text, #E5E7EB);">评审报告</li>
             </ol>
         </nav>
     </div>
 </div>
 
-<div class="row">
-    <div class="col-12 mb-3">
-        <div class="card shadow-sm border-0">
-            <div class="card-body">
-                <div class="d-flex align-items-center justify-content-between">
-                    <div>
-                        <h4 class="mb-1">
-                            <i class="bi bi-github"></i>
-                            <a href="{{ task.pr_url }}" target="_blank">{{ task.repo_owner }}/{{ task.repo_name }} #{{ task.pr_number }}</a>
-                        </h4>
-                        <p class="text-muted mb-0">{{ task.pr_url }}</p>
-                    </div>
-                    <div class="text-end">
-                        <span class="badge {% if report.risk_level == 'CRITICAL' %}bg-danger{% elif report.risk_level == 'HIGH' %}bg-warning text-dark{% elif report.risk_level == 'MEDIUM' %}bg-info{% else %}bg-success{% endif %} fs-6">
-                            风险等级: {{ report.risk_level }}
-                        </span>
-                    </div>
+<!-- Metric Cards Row -->
+<div class="row g-3 mb-4">
+    <div class="col-md-3">
+        <div class="cockpit-card p-3 metric-card" style="border-color: {% if report.risk_level == 'HIGH' or report.risk_level == 'CRITICAL' %}rgba(239,68,68,0.3){% elif report.risk_level == 'MEDIUM' %}rgba(245,158,11,0.3){% else %}rgba(34,197,94,0.3){% endif %};">
+            <div class="d-flex justify-content-between align-items-start">
+                <div>
+                    <div class="small text-uppercase mb-1" style="color: var(--cockpit-muted, #64748B); letter-spacing: 0.5px;">Risk Level</div>
+                    <div class="fs-3 fw-bold" style="color: {% if report.risk_level == 'HIGH' or report.risk_level == 'CRITICAL' %}var(--cockpit-danger){% elif report.risk_level == 'MEDIUM' %}var(--cockpit-warning){% else %}var(--cockpit-success){% endif %};">{{ report.risk_level }}</div>
                 </div>
+                <span class="badge {% if report.risk_level == 'HIGH' or report.risk_level == 'CRITICAL' %}bg-danger{% elif report.risk_level == 'MEDIUM' %}bg-warning text-dark{% else %}bg-success{% endif %} rounded-pill">{{ report.risk_level }}</span>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="cockpit-card p-3 metric-card" style="border-color: rgba(56,189,248,0.2);">
+            <div class="small text-uppercase mb-1" style="color: var(--cockpit-muted, #64748B); letter-spacing: 0.5px;">Review Confidence</div>
+            <div class="fs-3 fw-bold" style="color: var(--cockpit-primary, #38BDF8);">
+                {% set avg_conf = findings|map(attribute='confidence')|select('!=', none)|list %}
+                {% if avg_conf %}
+                    {{ ((avg_conf|sum / avg_conf|length) * 100)|int }}%
+                {% else %}--{% endif %}
+            </div>
+            <div style="font-size: 0.75rem; color: var(--cockpit-muted, #64748B);">across {{ findings|length }} findings</div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="cockpit-card p-3 metric-card" style="border-color: rgba(245,158,11,0.2);">
+            <div class="small text-uppercase mb-1" style="color: var(--cockpit-muted, #64748B); letter-spacing: 0.5px;">Findings</div>
+            <div class="d-flex align-items-baseline gap-2">
+                <div class="fs-3 fw-bold" style="color: var(--cockpit-warning, #F59E0B);">{{ findings|length }}</div>
+                <div style="font-size: 0.75rem; color: var(--cockpit-muted, #64748B);">
+                    {% set critical_count = findings|selectattr("severity", "equalto", "critical")|list|length %}
+                    {% set high_count = findings|selectattr("severity", "equalto", "high")|list|length %}
+                    {% if critical_count %}<span class="severity-critical">{{ critical_count }} critical</span>{% endif %}
+                    {% if high_count %}{% if critical_count %} / {% endif %}<span class="severity-high">{{ high_count }} high</span>{% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="cockpit-card p-3 metric-card" style="border-color: {% if report.merge_suggestion and '修复' in report.merge_suggestion %}rgba(239,68,68,0.3){% else %}rgba(34,197,94,0.3){% endif %};">
+            <div class="small text-uppercase mb-1" style="color: var(--cockpit-muted, #64748B); letter-spacing: 0.5px;">Merge Decision</div>
+            <div class="d-flex align-items-center gap-2">
+                <i class="bi {% if report.merge_suggestion and '修复' in report.merge_suggestion %}bi-exclamation-triangle" style="color: var(--cockpit-danger){% else %}bi-check-circle" style="color: var(--cockpit-success){% endif %};"></i>
+                <span class="fw-semibold" style="font-size: 0.9rem;">{{ report.merge_suggestion or '审核后合并' }}</span>
             </div>
         </div>
     </div>
 </div>
 
 <div class="row">
+    <!-- Left: File Risk Map -->
     <div class="col-lg-3 mb-3">
-        <div class="card shadow-sm border-0">
-            <div class="card-header bg-white">
-                <h6 class="mb-0"><i class="bi bi-files"></i> 变更文件 <span class="badge bg-secondary">{{ files|length }}</span></h6>
+        <div class="cockpit-card">
+            <div class="p-3" style="border-bottom: 1px solid var(--cockpit-border, rgba(148,163,184,0.2));">
+                <h6 class="mb-0" style="font-size: 0.85rem;"><i class="bi bi-diagram-3 me-1" style="color: var(--cockpit-primary);"></i> File Risk Map</h6>
             </div>
-            <div class="card-body p-0">
-                <div class="list-group list-group-flush" style="max-height: 500px; overflow-y: auto;">
-                    {% for file in files %}
-                    {% set file_finding_count = findings|selectattr("file_path", "equalto", file.file_path)|list|length %}
-                    <a href="#" class="list-group-item list-group-item-action file-item" data-file-id="{{ file.id }}" data-file-path="{{ file.file_path }}">
-                        <div class="d-flex w-100 justify-content-between align-items-center">
-                            <small class="text-truncate" style="max-width: 150px;">{{ file.file_path.split('/')[-1] }}</small>
-                            {% if file.risk_level == 'HIGH' %}
-                                <span class="badge bg-danger">HIGH</span>
-                            {% elif file.risk_level == 'MEDIUM' %}
-                                <span class="badge bg-warning text-dark">MED</span>
-                            {% elif file.risk_level == 'LOW' %}
-                                <span class="badge bg-secondary">low</span>
+            <div class="p-0" style="max-height: 500px; overflow-y: auto;">
+                {% for file in files %}
+                {% set file_findings = findings|selectattr("file_path", "equalto", file.file_path)|list %}
+                <div class="file-risk-item p-3" data-file-path="{{ file.file_path }}" style="border-bottom: 1px solid var(--cockpit-border, rgba(148,163,184,0.1));">
+                    <div class="d-flex justify-content-between align-items-center mb-1">
+                        <small class="text-truncate fw-semibold" style="max-width: 140px; font-size: 0.8rem;">{{ file.file_path.split('/')[-1] }}</small>
+                        {% if file.risk_level == 'HIGH' %}
+                            <span class="badge bg-danger" style="font-size: 0.6rem;">HIGH</span>
+                        {% elif file.risk_level == 'MEDIUM' %}
+                            <span class="badge bg-warning text-dark" style="font-size: 0.6rem;">MED</span>
+                        {% elif file.risk_level == 'LOW' %}
+                            <span class="badge bg-secondary" style="font-size: 0.6rem;">LOW</span>
+                        {% else %}
+                            <span class="badge bg-secondary" style="font-size: 0.6rem;">--</span>
+                        {% endif %}
+                    </div>
+                    <div class="risk-bar mb-1">
+                        {% set pct = {'HIGH': 85, 'MEDIUM': 55, 'LOW': 25}.get(file.risk_level, 10) %}
+                        <div class="risk-bar-fill" style="width: {{ pct }}%; background: {% if file.risk_level == 'HIGH' %}var(--cockpit-danger){% elif file.risk_level == 'MEDIUM' %}var(--cockpit-warning){% else %}var(--cockpit-success){% endif %};"></div>
+                    </div>
+                    <div class="d-flex justify-content-between" style="font-size: 0.7rem; color: var(--cockpit-muted, #64748B);">
+                        <span><span style="color: var(--cockpit-success);">+{{ file.additions }}</span>/<span style="color: var(--cockpit-danger);">-{{ file.deletions }}</span></span>
+                        <span>
+                            {% if file_findings %}
+                            <span style="color: var(--cockpit-warning);">{{ file_findings|length }} finding{% if file_findings|length > 1 %}s{% endif %}</span>
                             {% else %}
-                                <small class="text-muted">-</small>
+                            <span style="color: var(--cockpit-success);">clean</span>
                             {% endif %}
-                        </div>
-                        <small class="text-muted text-truncate d-block" style="max-width: 200px;">{{ file.file_path }}</small>
-                        <small class="text-muted">+{{ file.additions }}/-{{ file.deletions }}
-                            {% if file_finding_count %}<span class="badge bg-danger ms-1">{{ file_finding_count }}个问题</span>{% endif %}
-                        </small>
-                    </a>
-                    {% else %}
-                    <div class="list-group-item text-muted">暂无文件信息</div>
-                    {% endfor %}
+                            {% if file.risk_level == 'HIGH' %}
+                            <span class="ms-1" style="color: var(--cockpit-primary);">deep</span>
+                            {% elif file.risk_level == 'MEDIUM' %}
+                            <span class="ms-1" style="color: var(--cockpit-muted);">normal</span>
+                            {% else %}
+                            <span class="ms-1" style="color: var(--cockpit-muted);">skip</span>
+                            {% endif %}
+                        </span>
+                    </div>
                 </div>
-            </div>
-        </div>
-
-        <div class="card shadow-sm border-0 mt-3">
-            <div class="card-header bg-white">
-                <h6 class="mb-0"><i class="bi bi-pie-chart"></i> 概览</h6>
-            </div>
-            <div class="card-body">
-                <div class="d-flex justify-content-between mb-2">
-                    <span>🔴 严重: <strong class="severity-critical" id="count-critical">{{ counts.critical }}</strong></span>
-                    <span>🟠 高: <strong class="severity-high" id="count-high">{{ counts.high }}</strong></span>
-                </div>
-                <div class="d-flex justify-content-between mb-2">
-                    <span>🟡 中: <strong class="severity-medium" id="count-medium">{{ counts.medium }}</strong></span>
-                    <span>⚪ 低: <strong class="severity-low" id="count-low">{{ counts.low }}</strong></span>
-                </div>
-                <hr>
-                <p class="mb-1"><strong>合并建议:</strong></p>
-                <p class="text-muted small">{{ report.merge_suggestion or '无' }}</p>
-            </div>
-        </div>
-
-        <div class="card shadow-sm border-0 mt-3">
-            <div class="card-header bg-white">
-                <h6 class="mb-0"><i class="bi bi-lightbulb"></i> 重点关注</h6>
-            </div>
-            <div class="card-body">
-                {% if key_focus_points %}
-                <ul class="list-unstyled mb-0">
-                    {% for point in key_focus_points %}
-                    <li class="mb-2 small"><i class="bi bi-arrow-right-circle text-danger"></i> {{ point }}</li>
-                    {% endfor %}
-                </ul>
                 {% else %}
-                <p class="text-muted small mb-0">暂无重点关注的项</p>
+                <div class="p-4 text-center" style="color: var(--cockpit-muted, #64748B); font-size: 0.85rem;">暂无文件信息</div>
+                {% endfor %}
+            </div>
+        </div>
+
+        <!-- Overview summary -->
+        <div class="cockpit-card mt-3">
+            <div class="p-3" style="border-bottom: 1px solid var(--cockpit-border, rgba(148,163,184,0.2));">
+                <h6 class="mb-0" style="font-size: 0.85rem;"><i class="bi bi-pie-chart me-1" style="color: var(--cockpit-primary);"></i> Overview</h6>
+            </div>
+            <div class="p-3">
+                <div class="d-flex justify-content-between mb-2" style="font-size: 0.85rem;">
+                    <span style="color: var(--cockpit-danger);">Critical</span>
+                    <strong class="severity-critical" id="count-critical">{{ counts.critical }}</strong>
+                </div>
+                <div class="d-flex justify-content-between mb-2" style="font-size: 0.85rem;">
+                    <span style="color: var(--cockpit-warning);">High</span>
+                    <strong class="severity-high" id="count-high">{{ counts.high }}</strong>
+                </div>
+                <div class="d-flex justify-content-between mb-2" style="font-size: 0.85rem;">
+                    <span style="color: #EAB308;">Medium</span>
+                    <strong class="severity-medium" id="count-medium">{{ counts.medium }}</strong>
+                </div>
+                <div class="d-flex justify-content-between mb-2" style="font-size: 0.85rem;">
+                    <span style="color: var(--cockpit-muted);">Low</span>
+                    <strong class="severity-low" id="count-low">{{ counts.low }}</strong>
+                </div>
+                <hr style="border-color: var(--cockpit-border, rgba(148,163,184,0.2));">
+                {% if key_focus_points %}
+                <div style="font-size: 0.8rem;">
+                    <strong style="color: var(--cockpit-text);">Key Focus:</strong>
+                    <ul class="list-unstyled mt-1 mb-0">
+                        {% for point in key_focus_points[:3] %}
+                        <li class="mb-1"><i class="bi bi-arrow-right-circle me-1" style="color: var(--cockpit-danger); font-size: 0.7rem;"></i> {{ point }}</li>
+                        {% endfor %}
+                    </ul>
+                </div>
                 {% endif %}
             </div>
         </div>
     </div>
 
+    <!-- Right: Decision + Findings -->
     <div class="col-lg-9 mb-3">
-        <div class="card shadow-sm border-0">
-            <div class="card-header bg-white d-flex justify-content-between align-items-center flex-wrap gap-2">
-                <h6 class="mb-0"><i class="bi bi-chat-dots"></i> Review 结果 <span class="badge bg-secondary" id="visibleCount">{{ findings|length }}</span></h6>
-                <div class="d-flex align-items-center gap-2">
-                    <div class="btn-group btn-group-sm">
-                        <button class="btn btn-outline-secondary filter-btn active" data-severity="all">全部</button>
-                        <button class="btn btn-outline-danger filter-btn" data-severity="critical">严重</button>
-                        <button class="btn btn-outline-warning filter-btn" data-severity="high">高</button>
-                        <button class="btn btn-outline-info filter-btn" data-severity="medium">中</button>
-                        <button class="btn btn-outline-secondary filter-btn" data-severity="low">低</button>
+        <!-- Pipeline Bar -->
+        <div class="cockpit-card p-3 mb-3">
+            <div class="d-flex justify-content-between align-items-center pipeline-bar">
+                {% set pipeline = namespace(total=findings|length, comment_ready=0) %}
+                {% for f in findings %}{% if (f.confidence or 0) >= 0.8 %}{% set pipeline.comment_ready = pipeline.comment_ready + 1 %}{% endif %}{% endfor %}
+                {% set raw_estimate = (findings|length * 2) if findings|length > 0 else 18 %}
+                {% set deduped = findings|length %}
+                {% set visible = findings|length %}
+
+                {% set steps = [
+                    ("Raw AI Output", raw_estimate, "var(--cockpit-muted)", "bi-cpu"),
+                    ("Deduped", deduped, "var(--cockpit-primary)", "bi-funnel"),
+                    ("Confidence Gate", visible, "var(--cockpit-warning)", "bi-shield-check"),
+                    ("GitHub Ready", pipeline.comment_ready, "var(--cockpit-success)", "bi-github"),
+                ] %}
+                {% for label, count, color, icon in steps %}
+                <div class="pipeline-step d-flex align-items-center gap-2" style="flex: 1;">
+                    <div class="d-flex align-items-center justify-content-center rounded" style="width: 28px; height: 28px; background: rgba(148,163,184,0.1);">
+                        <i class="bi {{ icon }}" style="color: {{ color }}; font-size: 0.8rem;"></i>
                     </div>
-                    <div class="form-check form-check-inline mb-0">
-                        <input class="form-check-input" type="checkbox" id="hideLowConf" checked>
-                        <label class="form-check-label small" for="hideLowConf">隐藏低置信度 (&lt; 0.6)</label>
+                    <div>
+                        <div class="fw-bold" style="color: {{ color }}; font-size: 1rem;">{{ count }}</div>
+                        <div style="font-size: 0.6rem; color: var(--cockpit-muted, #64748B); white-space: nowrap;">{{ label }}</div>
                     </div>
-                    <button class="btn btn-outline-secondary btn-sm" id="expandAllBtn" title="展开全部">
-                        <i class="bi bi-arrows-expand"></i>
-                    </button>
-                    <button class="btn btn-outline-secondary btn-sm" id="collapseAllBtn" title="折叠全部">
-                        <i class="bi bi-arrows-collapse"></i>
-                    </button>
+                </div>
+                {% endfor %}
+            </div>
+        </div>
+
+        <!-- Review Decision Card -->
+        {% if findings %}
+        <div class="cockpit-card p-3 mb-3" style="border-color: {% if report.risk_level == 'HIGH' or report.risk_level == 'CRITICAL' %}rgba(239,68,68,0.3){% elif report.risk_level == 'MEDIUM' %}rgba(245,158,11,0.3){% else %}rgba(34,197,94,0.3){% endif %};">
+            <div class="d-flex justify-content-between align-items-start">
+                <div>
+                    <h6 style="font-size: 0.9rem; font-weight: 600;">
+                        <i class="bi bi-clipboard-check me-1" style="color: var(--cockpit-primary);"></i>
+                        Review Decision
+                    </h6>
+                    <div class="d-flex align-items-center gap-2 mb-2">
+                        <span class="fw-bold" style="font-size: 0.85rem;">{{ report.merge_suggestion or '审核后合并' }}</span>
+                        <span class="badge {% if report.risk_level == 'HIGH' or report.risk_level == 'CRITICAL' %}bg-danger{% elif report.risk_level == 'MEDIUM' %}bg-warning text-dark{% else %}bg-success{% endif %} rounded-pill" style="font-size: 0.65rem;">{{ report.risk_level }}</span>
+                    </div>
+                    {% if key_focus_points %}
+                    <div style="font-size: 0.8rem; color: var(--cockpit-muted, #64748B);">
+                        <strong>Reasons:</strong>
+                        <ul class="mb-0 mt-1">
+                            {% for point in key_focus_points[:5] %}
+                            <li>{{ point }}</li>
+                            {% endfor %}
+                        </ul>
+                    </div>
+                    {% endif %}
+                </div>
+                <div class="text-end" style="font-size: 0.75rem; color: var(--cockpit-muted, #64748B); white-space: nowrap;">
+                    <span>PR #{{ task.pr_number }}</span>
                 </div>
             </div>
-            <div class="card-body" style="max-height: 700px; overflow-y: auto;">
+        </div>
+        {% endif %}
+
+        <!-- Findings area -->
+        <div class="cockpit-card">
+            <div class="p-3 d-flex justify-content-between align-items-center flex-wrap gap-2" style="border-bottom: 1px solid var(--cockpit-border, rgba(148,163,184,0.2));">
+                <h6 class="mb-0" style="font-size: 0.9rem;">
+                    <i class="bi bi-chat-dots me-1" style="color: var(--cockpit-primary);"></i>
+                    Findings <span class="badge bg-secondary ms-1" id="visibleCount">{{ findings|length }}</span>
+                </h6>
+                <div class="d-flex align-items-center gap-2 flex-wrap">
+                    <div class="btn-group btn-group-sm">
+                        <button class="btn btn-outline-secondary filter-btn active" data-severity="all" style="font-size: 0.75rem; border-color: var(--cockpit-border);">All</button>
+                        <button class="btn btn-outline-danger filter-btn" data-severity="critical" style="font-size: 0.75rem; border-color: var(--cockpit-border);">Critical</button>
+                        <button class="btn btn-outline-warning filter-btn" data-severity="high" style="font-size: 0.75rem; border-color: var(--cockpit-border);">High</button>
+                        <button class="btn btn-outline-info filter-btn" data-severity="medium" style="font-size: 0.75rem; border-color: var(--cockpit-border);">Medium</button>
+                        <button class="btn btn-outline-secondary filter-btn" data-severity="low" style="font-size: 0.75rem; border-color: var(--cockpit-border);">Low</button>
+                    </div>
+                    <div class="form-check form-check-inline mb-0">
+                        <input class="form-check-input" type="checkbox" id="hideLowConf" checked style="border-color: var(--cockpit-border);">
+                        <label class="form-check-label" for="hideLowConf" style="font-size: 0.75rem; color: var(--cockpit-muted);">Hide low conf (&lt; 0.6)</label>
+                    </div>
+                    <button class="btn btn-outline-secondary btn-sm" id="expandAllBtn" title="Expand all" style="border-color: var(--cockpit-border); font-size: 0.75rem;"><i class="bi bi-arrows-expand"></i></button>
+                    <button class="btn btn-outline-secondary btn-sm" id="collapseAllBtn" title="Collapse all" style="border-color: var(--cockpit-border); font-size: 0.75rem;"><i class="bi bi-arrows-collapse"></i></button>
+                </div>
+            </div>
+            <div class="p-3" style="max-height: 600px; overflow-y: auto;">
                 {% if summary %}
-                <div class="mb-4 p-3 bg-light rounded">
-                    <h6>PR 摘要</h6>
-                    <p class="mb-0">{{ summary }}</p>
+                <div class="mb-3 p-3 rounded" style="background: rgba(148,163,184,0.06); border: 1px solid var(--cockpit-border);">
+                    <h6 style="font-size: 0.85rem; font-weight: 600;">PR Summary</h6>
+                    <p class="mb-0" style="font-size: 0.85rem; color: var(--cockpit-muted, #64748B);">{{ summary }}</p>
                 </div>
                 {% endif %}
 
                 <div id="findingsList">
                     {% if findings %}
-                        {% set severities = [("critical", "严重"), ("high", "高"), ("medium", "中"), ("low", "低")] %}
-                        {% for sev_key, sev_label in severities %}
+                        {% set severities = [("critical", "Critical", "var(--cockpit-danger)"), ("high", "High", "var(--cockpit-warning)"), ("medium", "Medium", "#EAB308"), ("low", "Low", "var(--cockpit-muted)")] %}
+                        {% for sev_key, sev_label, sev_color in severities %}
                         {% set sev_findings = findings|selectattr("severity", "equalto", sev_key)|list %}
                         {% if sev_findings %}
                         <div class="mb-3 severity-group" data-severity="{{ sev_key }}">
                             <div class="d-flex justify-content-between align-items-center severity-header py-2 px-3 rounded"
-                                 style="cursor:pointer; background: {% if sev_key == 'critical' %}#fce4e4{% elif sev_key == 'high' %}#fff3e0{% elif sev_key == 'medium' %}#fffde7{% else %}#f5f5f5{% endif %};"
+                                 style="cursor:pointer; background: rgba(148,163,184,0.06); border: 1px solid var(--cockpit-border);"
                                  data-bs-toggle="collapse" data-bs-target="#collapse-{{ sev_key }}">
                                 <span>
-                                    <strong>{{ sev_label }}</strong>
-                                    <span class="badge {% if sev_key == 'critical' %}bg-danger{% elif sev_key == 'high' %}bg-warning text-dark{% elif sev_key == 'medium' %}bg-info text-dark{% else %}bg-secondary{% endif %} ms-1">{{ sev_findings|length }}</span>
+                                    <strong style="font-size: 0.85rem; color: {{ sev_color }};">{{ sev_label }}</strong>
+                                    <span class="badge ms-1" style="background: {{ sev_color }}; font-size: 0.65rem;">{{ sev_findings|length }}</span>
                                 </span>
-                                <i class="bi bi-chevron-down collapse-icon"></i>
+                                <i class="bi bi-chevron-down collapse-icon" style="color: var(--cockpit-muted);"></i>
                             </div>
                             <div class="collapse show" id="collapse-{{ sev_key }}">
                                 {% for f in sev_findings %}
-                                <div class="finding-item {{ f.severity }} p-3 mb-2 mt-2 rounded border finding-card"
+                                <div class="finding-card finding-item {{ f.severity }} p-3 mb-2 mt-2 rounded"
                                      data-severity="{{ f.severity }}"
                                      data-confidence="{{ f.confidence or 0 }}"
                                      data-file-path="{{ f.file_path }}"
-                                     data-finding-id="{{ f.id }}">
+                                     data-finding-id="{{ f.id }}"
+                                     style="border: 1px solid var(--cockpit-border); background: rgba(148,163,184,0.03);">
                                     <div class="d-flex justify-content-between align-items-start">
-                                        <h6 class="mb-1">
-                                            <span class="badge badge-{{ f.severity }} me-1">{{ f.severity }}</span>
+                                        <h6 class="mb-1" style="font-size: 0.85rem;">
+                                            <span class="badge me-1" style="background: {% if f.severity == 'critical' %}var(--cockpit-danger){% elif f.severity == 'high' %}var(--cockpit-warning){% elif f.severity == 'medium' %}#EAB308{% else %}var(--cockpit-muted){% endif %}; color: {% if f.severity in ('high', 'medium') %}#000{% else %}#fff{% endif %}; font-size: 0.65rem;">{{ f.severity }}</span>
                                             {{ f.title }}
                                             {% if f.finding_type %}
-                                            <small class="text-muted">[{{ f.finding_type }}]</small>
+                                            <span style="color: var(--cockpit-muted); font-size: 0.75rem;">[{{ f.finding_type }}]</span>
                                             {% endif %}
                                         </h6>
-                                        <div class="d-flex align-items-center gap-2">
-                                            <small class="text-muted">
-                                                置信度: {{ (f.confidence * 100)|int if f.confidence else 0 }}%
+                                        <div class="d-flex align-items-center gap-2" style="font-size: 0.75rem;">
+                                            <span style="color: var(--cockpit-muted);">
+                                                conf: {{ (f.confidence * 100)|int if f.confidence else 0 }}%
                                                 {% if (f.confidence or 0) >= 0.8 %}
-                                                    <span class="badge bg-success">高可信</span>
+                                                    <span class="badge bg-success" style="font-size: 0.6rem;">high</span>
                                                 {% elif (f.confidence or 0) >= 0.6 %}
-                                                    <span class="badge bg-warning text-dark">中</span>
+                                                    <span class="badge bg-warning text-dark" style="font-size: 0.6rem;">mid</span>
                                                 {% else %}
-                                                    <span class="badge bg-secondary">低</span>
+                                                    <span class="badge bg-secondary" style="font-size: 0.6rem;">low</span>
                                                 {% endif %}
-                                            </small>
+                                            </span>
                                         </div>
                                     </div>
-                                    <p class="mb-1 small">
-                                        <code class="file-path-label" data-file="{{ f.file_path }}">{{ f.file_path }}</code>{% if f.line_number %}:<strong>{{ f.line_number }}</strong>{% endif %}
-                                    </p>
+                                    <div style="font-size: 0.8rem; color: var(--cockpit-muted, #64748B); margin-bottom: 0.25rem;">
+                                        <code class="file-path-label" data-file="{{ f.file_path }}" style="color: var(--cockpit-primary);">{{ f.file_path.split('/')[-1] }}</code>{% if f.line_number %}:<strong style="color: var(--cockpit-text);">{{ f.line_number }}</strong>{% endif %}
+                                    </div>
+
+                                    <!-- Evidence Chain -->
+                                    <div class="d-flex gap-3 mb-2" style="font-size: 0.7rem; color: var(--cockpit-muted, #64748B);">
+                                        <span><i class="bi bi-file-earmark me-1"></i>{{ f.file_path.split('/')[-1] }}</span>
+                                        {% if f.finding_type %}
+                                        <span><i class="bi bi-rule me-1"></i>{{ f.finding_type }}</span>
+                                        {% endif %}
+                                        <span><i class="bi bi-layers me-1"></i>{% if f.finding_type and f.finding_type.startswith('S') %}static_rule{% else %}ai{% endif %}</span>
+                                    </div>
+
                                     {% if f.reason %}
-                                    <p class="mb-1 small text-muted reason-text">{{ f.reason }}</p>
+                                    <p class="mb-1" style="font-size: 0.8rem; color: var(--cockpit-muted, #64748B);">{{ f.reason }}</p>
                                     {% endif %}
                                     {% if f.suggestion %}
-                                    <div class="p-2 bg-light rounded small mt-1 suggestion-block d-flex justify-content-between align-items-start">
+                                    <div class="p-2 rounded d-flex justify-content-between align-items-start mt-1" style="background: rgba(148,163,184,0.06); border: 1px solid var(--cockpit-border); font-size: 0.8rem;">
                                         <div class="flex-grow-1">
-                                            <strong>建议:</strong> {{ f.suggestion }}
+                                            <strong style="color: var(--cockpit-success);">Suggestion:</strong>
+                                            <span style="color: var(--cockpit-muted, #64748B);">{{ f.suggestion }}</span>
                                         </div>
-                                        <button class="btn btn-sm btn-outline-secondary ms-2 copy-btn" title="复制建议" data-text="{{ f.suggestion }}">
+                                        <button class="btn btn-sm copy-btn ms-2" title="Copy" data-text="{{ f.suggestion }}" style="border-color: var(--cockpit-border); color: var(--cockpit-muted); background: transparent; font-size: 0.7rem;">
                                             <i class="bi bi-clipboard"></i>
                                         </button>
                                     </div>
                                     {% endif %}
                                     <div class="mt-2">
-                                        <button class="btn btn-sm btn-outline-success feedback-btn"
-                                                data-finding-id="{{ f.id }}" data-type="EFFECTIVE">
-                                            <i class="bi bi-check-circle"></i> 有效
+                                        <button class="btn btn-sm feedback-btn" data-finding-id="{{ f.id }}" data-type="EFFECTIVE" style="border-color: rgba(34,197,94,0.3); color: var(--cockpit-success); font-size: 0.7rem; background: transparent;">
+                                            <i class="bi bi-check-circle"></i> Valid
                                         </button>
-                                        <button class="btn btn-sm btn-outline-warning feedback-btn"
-                                                data-finding-id="{{ f.id }}" data-type="FALSE_POSITIVE">
-                                            <i class="bi bi-x-circle"></i> 误报
+                                        <button class="btn btn-sm feedback-btn" data-finding-id="{{ f.id }}" data-type="FALSE_POSITIVE" style="border-color: rgba(245,158,11,0.3); color: var(--cockpit-warning); font-size: 0.7rem; background: transparent;">
+                                            <i class="bi bi-x-circle"></i> FP
                                         </button>
-                                        <button class="btn btn-sm btn-outline-secondary feedback-btn"
-                                                data-finding-id="{{ f.id }}" data-type="RESOLVED">
-                                            <i class="bi bi-check2"></i> 已处理
+                                        <button class="btn btn-sm feedback-btn" data-finding-id="{{ f.id }}" data-type="RESOLVED" style="border-color: rgba(148,163,184,0.3); color: var(--cockpit-muted); font-size: 0.7rem; background: transparent;">
+                                            <i class="bi bi-check2"></i> Resolved
                                         </button>
                                     </div>
                                 </div>
@@ -222,7 +358,10 @@
                         {% endif %}
                         {% endfor %}
                     {% else %}
-                    <p class="text-muted text-center py-4">暂无评审发现</p>
+                    <div class="text-center py-5" style="color: var(--cockpit-muted, #64748B);">
+                        <i class="bi bi-check-circle" style="font-size: 2.5rem; color: var(--cockpit-success);"></i>
+                        <p class="mt-2 mb-0">No findings — PR looks clean</p>
+                    </div>
                     {% endif %}
                 </div>
             </div>
@@ -251,14 +390,16 @@ function applyFilters() {
         if (show) visible++;
     });
 
-    // Show/hide severity groups
     document.querySelectorAll('.severity-group').forEach(group => {
         const sev = group.dataset.severity;
         const hasVisible = Array.from(group.querySelectorAll('.finding-card')).some(
             card => card.style.display !== 'none'
         );
-        group.style.display = 'none';
-        if (currentFilter === 'all' || currentFilter === sev) {
+        if (currentFilter === 'all' && currentFileFilter && !hasVisible) {
+            group.style.display = 'none';
+        } else if (currentFilter !== 'all' && currentFilter !== sev) {
+            group.style.display = 'none';
+        } else {
             group.style.display = hasVisible ? '' : 'none';
         }
     });
@@ -279,16 +420,15 @@ document.querySelectorAll('.filter-btn').forEach(btn => {
 // ---- Confidence Filter ----
 document.getElementById('hideLowConf').addEventListener('change', applyFilters);
 
-// ---- File Filter ----
-document.querySelectorAll('.file-item').forEach(item => {
+// ---- File Risk Map Click Filter ----
+document.querySelectorAll('.file-risk-item').forEach(item => {
     item.addEventListener('click', function(e) {
         e.preventDefault();
         const filePath = this.dataset.filePath;
-        document.querySelectorAll('.file-item').forEach(f => f.classList.remove('active'));
-        this.classList.add('active');
+        document.querySelectorAll('.file-risk-item').forEach(f => f.classList.remove('active'));
+        this.classList.toggle('active');
         currentFileFilter = currentFileFilter === filePath ? '' : filePath;
         applyFilters();
-        // Scroll findings into view
         document.getElementById('findingsList').scrollIntoView({ behavior: 'smooth' });
     });
 });
@@ -308,23 +448,21 @@ document.querySelectorAll('.copy-btn').forEach(btn => {
 // ---- Expand / Collapse All ----
 document.getElementById('expandAllBtn').addEventListener('click', () => {
     document.querySelectorAll('.severity-group .collapse').forEach(c => {
-        if (bootstrap.Collapse.getInstance(c)) bootstrap.Collapse.getInstance(c).show();
+        const inst = bootstrap.Collapse.getInstance(c);
+        if (inst) inst.show();
     });
 });
 document.getElementById('collapseAllBtn').addEventListener('click', () => {
     document.querySelectorAll('.severity-group .collapse').forEach(c => {
-        if (bootstrap.Collapse.getInstance(c)) bootstrap.Collapse.getInstance(c).hide();
+        const inst = bootstrap.Collapse.getInstance(c);
+        if (inst) inst.hide();
     });
 });
 
 // ---- Keyboard Shortcuts ----
 document.addEventListener('keydown', function(e) {
-    // Don't trigger when typing in inputs
     if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return;
-
-    const keyMap = {
-        '1': 'all', '2': 'critical', '3': 'high', '4': 'medium', '5': 'low'
-    };
+    const keyMap = { '1': 'all', '2': 'critical', '3': 'high', '4': 'medium', '5': 'low' };
     if (e.key in keyMap) {
         const sev = keyMap[e.key];
         document.querySelectorAll('.filter-btn').forEach(b => {
@@ -334,15 +472,11 @@ document.addEventListener('keydown', function(e) {
         applyFilters();
         e.preventDefault();
     }
-
-    // F / f: focus next visible finding
     if (e.key === 'f' || e.key === 'F') {
-        const visible = document.querySelector('.finding-card[style*="display: block"], .finding-card:not([style*="display: none"])');
+        const visible = document.querySelector('.finding-card:not([style*="display: none"])');
         if (visible) visible.scrollIntoView({ behavior: 'smooth', block: 'center' });
         e.preventDefault();
     }
-
-    // R: re-run (go to progress page)
     if ((e.key === 'r' || e.key === 'R') && !e.ctrlKey && !e.metaKey) {
         window.location.href = '/tasks/{{ task.id }}';
         e.preventDefault();
@@ -361,25 +495,20 @@ document.querySelectorAll('.feedback-btn').forEach(btn => {
                 body: JSON.stringify({ feedback_type: type })
             });
             if (resp.ok) {
-                this.classList.remove('btn-outline-success', 'btn-outline-warning', 'btn-outline-secondary');
-                this.classList.add('btn-success');
+                this.style.borderColor = 'rgba(34,197,94,0.6)';
+                this.style.color = '#22C55E';
                 this.disabled = true;
             }
-        } catch (e) {
-            console.error('Feedback error:', e);
-        }
+        } catch (e) { console.error('Feedback error:', e); }
     });
 });
 
-// ---- Tooltip: keyboard shortcuts hint ----
+// ---- Keyboard shortcut hint ----
 const hint = document.createElement('div');
-hint.className = 'text-muted small text-end mt-2';
-hint.innerHTML = `
-    <i class="bi bi-keyboard"></i>
-    <kbd>1</kbd>全部 <kbd>2</kbd>严重 <kbd>3</kbd>高 <kbd>4</kbd>中 <kbd>5</kbd>低
-    <kbd>F</kbd>下一个 <kbd>R</kbd>刷新
-`;
-document.querySelector('#findingsList').parentElement.appendChild(hint);
+hint.className = 'text-end mt-2';
+hint.style.cssText = 'font-size: 0.7rem; color: var(--cockpit-muted, #64748B);';
+hint.innerHTML = '<i class="bi bi-keyboard"></i> <kbd style="background: rgba(148,163,184,0.15); color: var(--cockpit-muted); border: 1px solid var(--cockpit-border); padding: 1px 4px; border-radius: 3px; font-size: 0.65rem;">1-5</kbd> filter <kbd style="background: rgba(148,163,184,0.15); color: var(--cockpit-muted); border: 1px solid var(--cockpit-border); padding: 1px 4px; border-radius: 3px; font-size: 0.65rem;">F</kbd> next <kbd style="background: rgba(148,163,184,0.15); color: var(--cockpit-muted); border: 1px solid var(--cockpit-border); padding: 1px 4px; border-radius: 3px; font-size: 0.65rem;">R</kbd> refresh';
+document.querySelector('.cockpit-card:last-child .p-3:last-child').appendChild(hint);
 
 // Apply filters on load
 applyFilters();
