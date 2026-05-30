@@ -20,7 +20,7 @@ def test_home_page_shows_golden_evaluation_metrics():
     assert "Precision" in response.text
     assert "Recall" in response.text
     assert "False Positives" in response.text
-    assert "8 cases" in response.text
+    assert "20 cases" in response.text
 
 
 def test_golden_evaluation_api_returns_metrics():
@@ -29,11 +29,24 @@ def test_golden_evaluation_api_returns_metrics():
 
     assert response.status_code == 200
     payload = response.json()
-    assert payload["total_cases"] == 8
+    assert payload["total_cases"] >= 20
     assert payload["precision"] == 1.0
     assert payload["recall"] == 1.0
     assert payload["false_positive_count"] == 0
     assert payload["false_negative_count"] == 0
+    assert payload["rule_metrics"]["S005"]["expected"] == 2
+
+
+def test_evaluation_page_shows_rule_metrics_and_gate_comparison():
+    with TestClient(app) as client:
+        response = client.get("/evaluation")
+
+    assert response.status_code == 200
+    assert "Golden Evaluation Dashboard" in response.text
+    assert "Ordinary diff-to-LLM baseline" in response.text
+    assert "Rule-level Quality" in response.text
+    assert "S005" in response.text
+    assert "20 cases" in response.text
 
 
 def test_report_page_shows_cockpit_vs_plain_llm_gate():
