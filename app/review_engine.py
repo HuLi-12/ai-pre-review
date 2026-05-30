@@ -1,6 +1,6 @@
 import asyncio
 import re
-from typing import List, Optional, Dict, Any, Set
+from typing import List, Optional, Dict
 from dataclasses import dataclass, field
 
 from sqlalchemy.orm import Session
@@ -272,7 +272,7 @@ class ReviewEngine:
             f"{f.file_path} ({f.change_type}, +{f.additions}/-{f.deletions})"
             for f in files[:50]
         ])
-        loop = asyncio.get_event_loop()
+        loop = asyncio.get_running_loop()
         summary = await loop.run_in_executor(
             None,
             self.ai.summarize_pr,
@@ -293,7 +293,7 @@ class ReviewEngine:
     ) -> List[dict]:
         """Review files in order of risk score. Deep review for high-risk files."""
         all_findings = []
-        loop = asyncio.get_event_loop()
+        loop = asyncio.get_running_loop()
 
         # Score and sort files
         scored_files = []
@@ -369,7 +369,7 @@ class ReviewEngine:
         context: ReviewContext,
         file_findings: List[dict],
     ) -> List[dict]:
-        loop = asyncio.get_event_loop()
+        loop = asyncio.get_running_loop()
 
         file_contexts = {}
         for f in changed_files[:15]:
@@ -470,20 +470,8 @@ class ReviewEngine:
             has_rule = any(f.get("source") == "static_rule" for f in group)
             has_ai = any(f.get("source", "").startswith("ai") for f in group)
 
-            # For rule-only findings, give them their base confidence
-            if best.get("source") == "static_rule":
-                rule_id = best.get("type", "")
-                if rule_id in ("S005", "S014"):
-                    best["confidence"] = 0.85  # Deterministic high-risk rules, always show
-                elif best.get("severity") == "critical":
-                    best["confidence"] = 0.75
-                elif best.get("severity") == "high":
-                    best["confidence"] = 0.65
-                else:
-                    best["confidence"] = 0.45
-            else:
-                # Calculate confidence with agreement bonus
-                best["confidence"] = calculate_confidence(best, has_rule_match=has_rule)
+            # Calculate confidence — unified logic via confidence_calculator
+            best["confidence"] = calculate_confidence(best, has_rule_match=has_rule)
 
             # Add cross-reference info
             if has_rule and has_ai:

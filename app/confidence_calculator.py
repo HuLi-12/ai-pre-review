@@ -80,12 +80,6 @@ def calculate_confidence(finding: dict, has_rule_match: bool = False) -> float:
     return max(0.0, min(1.0, score))
 
 
-def adjust_by_rule_match(ai_finding: dict, rule_finding: dict) -> float:
-    """Calculate agreement-adjusted confidence when AI and rule both flag."""
-    base = calculate_confidence(ai_finding, has_rule_match=True)
-    return base
-
-
 def should_show_in_report(confidence: float) -> bool:
     """Check if finding should be visible in report."""
     return confidence >= 0.60

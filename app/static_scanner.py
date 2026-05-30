@@ -1,5 +1,5 @@
 import re
-from typing import List, Optional, Dict
+from typing import List
 from dataclasses import dataclass
 
 from app.diff_utils import parse_patch
@@ -159,8 +159,11 @@ class StaticScanner:
         return self.scan_patch(file_path, content)
 
     def _is_safe_sql(self, line: str) -> bool:
-        """Heuristic: check if a SQL statement has a WHERE clause."""
+        """Heuristic: check if a SQL statement has a WHERE clause or is a comment."""
         line_lower = line.strip().lower()
+        # Ignore comment lines — not actual SQL
+        if line_lower.startswith(("#", "//", "/*", "*")):
+            return True
         if "delete" in line_lower or "update" in line_lower:
             if "where" in line_lower:
                 return True
@@ -169,32 +172,48 @@ class StaticScanner:
         return False
 
     def _check_loop_db_call(self, file_path: str, added_lines: list, findings: List[RuleFinding]):
-        """Check if a loop is added that contains db/api calls inside."""
-        loop_lines = []
+        """Check if a loop is added that contains db/api calls inside.
+        Scans lines at greater indentation than the loop (Python) or within brace range.
+        """
+        is_python = file_path.endswith(".py")
+        loop_items = []
         for item in added_lines:
             line = item["content"]
             if re.search(r'(for\s+.*:|for\s*\(|while\s*\(|\.forEach\s*\()', line):
-                loop_lines.append(item)
+                indent = len(item["content"]) - len(item["content"].lstrip())
+                loop_items.append((item, indent))
 
-        for loop_item in loop_lines:
-            # Look for database keywords within 3 lines after the loop
+        for loop_item, indent in loop_items:
             loop_line = loop_item["new_line"]
+            db_keywords = ['mapper', 'repository', '.save(', '.find', '.query',
+                           '.update(', '.delete(', '.get(', '.all(',
+                           'db.', 'session.', 'cursor.', 'execute(']
+
             for other in added_lines:
-                if 0 < other["new_line"] - loop_line <= 3:
-                    db_keywords = ['mapper', 'repository', '.save(', '.find', '.query',
-                                   '.update(', '.delete(', '.get(', '.all(',
-                                   'db.', 'session.', 'cursor.', 'execute(']
-                    for kw in db_keywords:
-                        if kw in other["content"].lower():
-                            findings.append(RuleFinding(
-                                file_path=file_path,
-                                line_number=other["new_line"],
-                                rule_id="S011",
-                                severity="high",
-                                message="Database/API call inside a loop — potential N+1 query problem",
-                                line_content=other["content"].strip(),
-                            ))
-                            break
+                if other["new_line"] <= loop_line:
+                    continue
+                # For Python, check indentation; for brace langs, check range
+                if is_python:
+                    other_indent = len(other["content"]) - len(other["content"].lstrip())
+                    if other_indent <= indent:
+                        continue  # Outside the loop body
+                else:
+                    if other["new_line"] - loop_line > 30:
+                        continue  # Safety limit for brace langs
+                    if other["content"].strip() == "}":
+                        continue
+
+                for kw in db_keywords:
+                    if kw in other["content"].lower():
+                        findings.append(RuleFinding(
+                            file_path=file_path,
+                            line_number=other["new_line"],
+                            rule_id="S011",
+                            severity="high",
+                            message="Database/API call inside a loop — potential N+1 query problem",
+                            line_content=other["content"].strip(),
+                        ))
+                        break
 
     def _check_missing_validation(self, file_path: str, added_lines: list, findings: List[RuleFinding]):
         """Check if a new API endpoint has parameter validation."""
@@ -240,52 +259,75 @@ class StaticScanner:
         # Parse patch to get affected line ranges
         patch_ranges = self._get_patch_line_ranges(patch)
 
-        # Find methods in full content
-        method_starts = []
+        is_python = file_path.endswith(".py")
         lines = full_content.split("\n")
-        in_method = False
-        method_start = 0
-        brace_count = 0
+        methods = self._find_methods(lines, is_python)
 
-        for i, line in enumerate(lines, 1):
-            stripped = line.strip()
-            if re.match(r'(def |public |private |protected ).*\(', stripped):
-                if not in_method:
-                    method_starts.append({"line": i, "name": stripped[:60]})
+        for item in methods:
+            method_length = item["end"] - item["start"]
+            if method_length <= 80:
                 continue
+            # Check if patch touches this method's range
+            for r_start, r_end in patch_ranges:
+                if r_end >= item["start"] and r_start <= item["end"]:
+                    findings.append(RuleFinding(
+                        file_path=file_path,
+                        line_number=item["start"],
+                        rule_id="S007",
+                        severity="medium",
+                        message=f"Modified method at line {item['start']} has {method_length} lines, consider refactoring",
+                        line_content=item["name"],
+                    ))
+                    break
 
-        # For each large method that appears in the patch, flag it
-        for item in method_starts:
-            method_end = self._find_method_end(lines, item["line"])
-            method_length = method_end - item["line"]
-            if method_length > 80:
-                # Check if patch touches this method's range
-                for r_start, r_end in patch_ranges:
-                    if not (r_end < item["line"] or r_start > method_end):
-                        findings.append(RuleFinding(
-                            file_path=file_path,
-                            line_number=item["line"],
-                            rule_id="S007",
-                            severity="medium",
-                            message=f"Modified method at line {item['line']} has {method_length} lines, consider refactoring",
-                            line_content=item["name"],
-                        ))
-                        break
+    def _find_methods(self, lines: list, is_python: bool) -> list:
+        """Find method definitions and their line ranges."""
+        methods = []
+        if is_python:
+            current_method = None
+            for i, line in enumerate(lines, 1):
+                stripped = line.rstrip()
+                if re.match(r'^\s*def\s+\w+\s*\(', stripped):
+                    if current_method:
+                        current_method["end"] = i - 1
+                        methods.append(current_method)
+                    indent = len(line) - len(line.lstrip())
+                    current_method = {"start": i, "name": stripped[:60], "indent": indent, "end": len(lines)}
+                elif current_method:
+                    # Method ends when a line at the same or lesser indentation
+                    # is found (not a comment, decorator, or blank)
+                    if stripped and not stripped.startswith("#") and not stripped.startswith("@"):
+                        new_indent = len(line) - len(line.lstrip())
+                        if new_indent <= current_method["indent"]:
+                            current_method["end"] = i - 1
+                            methods.append(current_method)
+                            current_method = None
+            if current_method:
+                current_method["end"] = len(lines)
+                methods.append(current_method)
+        else:
+            # Brace-based (Java, C, JS, TS, Go, etc.)
+            in_method = False
+            method_start = 0
+            method_name = ""
+            brace_count = 0
+            for i, line in enumerate(lines, 1):
+                stripped = line.strip()
+                if not in_method and re.match(r'(public |private |protected |static |def |func )', stripped):
+                    if re.search(r'\(', stripped):
+                        in_method = True
+                        method_start = i
+                        method_name = stripped[:60]
+                        brace_count = 0
+                if in_method:
+                    brace_count += stripped.count("{") - stripped.count("}")
+                    if brace_count <= 0 and i > method_start:
+                        methods.append({"start": method_start, "end": i, "name": method_name})
+                        in_method = False
+            if in_method:
+                methods.append({"start": method_start, "end": len(lines), "name": method_name})
 
-    def _find_method_end(self, lines: list, start: int) -> int:
-        """Find end line of a method by brace counting."""
-        brace_count = 0
-        started = False
-        for i in range(start - 1, len(lines)):
-            line = lines[i]
-            stripped = line.strip()
-            if "{" in stripped:
-                started = True
-            if started:
-                brace_count += stripped.count("{") - stripped.count("}")
-            if started and brace_count <= 0 and i > start:
-                return i + 1
-        return len(lines)
+        return methods
 
     def _get_patch_line_ranges(self, patch: str) -> list:
         """Extract line ranges from patch hunks."""

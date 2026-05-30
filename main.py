@@ -3,10 +3,8 @@ from fastapi import FastAPI, Request
 from fastapi.responses import HTMLResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
-from sqlalchemy.orm import Session
-
 from config import settings
-from app.database import init_db, get_db, SessionLocal
+from app.database import init_db, SessionLocal
 from app.models import PRReviewTask, PRChangedFile, PRReviewFinding
 from app.routers import tasks, reports
 
@@ -95,6 +93,11 @@ def rules_page(request: Request):
         {"id": "S015", "name": "test_missing", "severity": "medium", "description": "核心源码文件变更但对应的测试文件未更新。建议为新增/修改的逻辑补充测试用例。", "detection": "ai", "bad_code": "Modified: src/service.py  (no test update)", "good_code": "Modified: src/service.py, tests/test_service.py"},
     ]
     return templates.TemplateResponse("rules.html", {"request": request, "rules": rules})
+
+
+@app.get("/prototype", response_class=HTMLResponse)
+def prototype_page(request: Request):
+    return templates.TemplateResponse("prototype.html", {"request": request})
 
 
 @app.get("/tasks/{task_id}", response_class=HTMLResponse)

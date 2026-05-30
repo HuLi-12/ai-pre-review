@@ -1,5 +1,6 @@
-from typing import List, Dict, Any, Optional
+from typing import List, Dict
 from dataclasses import dataclass, field
+from app.confidence_calculator import should_comment_to_github
 
 
 @dataclass
@@ -155,8 +156,8 @@ class ReportGenerator:
         high_confidence = []
         for severity in ("critical", "high"):
             for fd in report.findings_by_severity.get(severity, []):
-                confidence = fd.get("confidence", 0) or 0
-                if confidence >= 0.70:  # Only high confidence for GitHub
+                confidence = fd.get("confidence", 0)
+                if should_comment_to_github(confidence, severity):
                     high_confidence.append(fd)
 
         if high_confidence:
@@ -186,7 +187,7 @@ class ReportGenerator:
 
         # Medium suggestions (summarized)
         medium = report.findings_by_severity.get("medium", [])
-        high_conf_medium = [f for f in medium if (f.get("confidence", 0) or 0) >= 0.70]
+        high_conf_medium = [f for f in medium if should_comment_to_github(f.get("confidence", 0) or 0, "medium")]
         if high_conf_medium:
             parts.append("### 改进建议\n")
             for fd in high_conf_medium[:5]:
