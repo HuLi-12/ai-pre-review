@@ -1,0 +1,184 @@
+{% extends "base.html" %}
+{% block title %}Golden Evaluation Dashboard - AI Review Cockpit{% endblock %}
+
+{% block content %}
+<div class="row mb-4">
+    <div class="col-lg-8">
+        <div class="small text-uppercase mb-2" style="color: var(--cockpit-success); letter-spacing: 1px;">
+            <i class="bi bi-clipboard2-check me-1"></i> Golden Evaluation Dashboard
+        </div>
+        <h1 class="fw-bold mb-2">Review quality, measured before it reaches reviewers</h1>
+        <p class="mb-0" style="color: var(--cockpit-muted); max-width: 760px;">
+            Fixed PR/diff cases quantify false positives, missed findings, and confidence gates.
+            This page explains why the cockpit is stricter than an ordinary diff-to-LLM baseline.
+        </p>
+    </div>
+    <div class="col-lg-4 text-lg-end mt-3 mt-lg-0">
+        <a href="/api/evaluation/golden" class="btn btn-outline-light btn-sm">
+            <i class="bi bi-braces"></i> JSON
+        </a>
+    </div>
+</div>
+
+<div class="row g-3 mb-4">
+    <div class="col-6 col-lg-2">
+        <div class="cockpit-card p-3 h-100">
+            <div class="small text-uppercase" style="color: var(--cockpit-muted);">Cases</div>
+            <div class="fs-3 fw-bold" style="color: var(--cockpit-primary);">{{ golden_eval.total_cases }} cases</div>
+        </div>
+    </div>
+    <div class="col-6 col-lg-2">
+        <div class="cockpit-card p-3 h-100">
+            <div class="small text-uppercase" style="color: var(--cockpit-muted);">Precision</div>
+            <div class="fs-3 fw-bold" style="color: var(--cockpit-success);">{{ (golden_eval.precision * 100)|int }}%</div>
+        </div>
+    </div>
+    <div class="col-6 col-lg-2">
+        <div class="cockpit-card p-3 h-100">
+            <div class="small text-uppercase" style="color: var(--cockpit-muted);">Recall</div>
+            <div class="fs-3 fw-bold" style="color: var(--cockpit-success);">{{ (golden_eval.recall * 100)|int }}%</div>
+        </div>
+    </div>
+    <div class="col-6 col-lg-2">
+        <div class="cockpit-card p-3 h-100">
+            <div class="small text-uppercase" style="color: var(--cockpit-muted);">False Positives</div>
+            <div class="fs-3 fw-bold" style="color: var(--cockpit-danger);">{{ golden_eval.false_positive_count }}</div>
+        </div>
+    </div>
+    <div class="col-6 col-lg-2">
+        <div class="cockpit-card p-3 h-100">
+            <div class="small text-uppercase" style="color: var(--cockpit-muted);">Missed</div>
+            <div class="fs-3 fw-bold" style="color: var(--cockpit-danger);">{{ golden_eval.false_negative_count }}</div>
+        </div>
+    </div>
+    <div class="col-6 col-lg-2">
+        <div class="cockpit-card p-3 h-100">
+            <div class="small text-uppercase" style="color: var(--cockpit-muted);">GitHub Ready</div>
+            <div class="fs-3 fw-bold" style="color: var(--cockpit-warning);">{{ golden_eval.github_ready_count }}</div>
+        </div>
+    </div>
+</div>
+
+<div class="row g-3 mb-4">
+    <div class="col-lg-5">
+        <div class="cockpit-card p-4 h-100">
+            <h5 class="fw-semibold mb-3">
+                <i class="bi bi-cpu me-1" style="color: var(--cockpit-muted);"></i>
+                Ordinary diff-to-LLM baseline
+            </h5>
+            <div class="d-flex justify-content-between mb-2">
+                <span style="color: var(--cockpit-muted);">Candidate suggestions</span>
+                <strong>{{ ordinary_baseline_count }}</strong>
+            </div>
+            <div class="d-flex justify-content-between mb-2">
+                <span style="color: var(--cockpit-muted);">Confidence gate</span>
+                <strong style="color: var(--cockpit-danger);">None</strong>
+            </div>
+            <div class="d-flex justify-content-between">
+                <span style="color: var(--cockpit-muted);">Reviewer noise control</span>
+                <strong style="color: var(--cockpit-danger);">Manual</strong>
+            </div>
+        </div>
+    </div>
+    <div class="col-lg-7">
+        <div class="cockpit-card p-4 h-100" style="border-color: rgba(34,197,94,0.25);">
+            <h5 class="fw-semibold mb-3">
+                <i class="bi bi-shield-check me-1" style="color: var(--cockpit-success);"></i>
+                Cockpit confidence-gated review
+            </h5>
+            <div class="row g-3">
+                <div class="col-md-4">
+                    <div class="p-3 rounded" style="background: rgba(56,189,248,0.08); border: 1px solid rgba(56,189,248,0.16);">
+                        <div class="small text-uppercase" style="color: var(--cockpit-muted);">Expected Visible</div>
+                        <div class="fs-4 fw-bold">{{ golden_eval.visible_expected_count }}/{{ golden_eval.expected_total }}</div>
+                    </div>
+                </div>
+                <div class="col-md-4">
+                    <div class="p-3 rounded" style="background: rgba(245,158,11,0.08); border: 1px solid rgba(245,158,11,0.16);">
+                        <div class="small text-uppercase" style="color: var(--cockpit-muted);">Filtered Noise</div>
+                        <div class="fs-4 fw-bold">{{ gate_filtered_count }}</div>
+                    </div>
+                </div>
+                <div class="col-md-4">
+                    <div class="p-3 rounded" style="background: rgba(34,197,94,0.08); border: 1px solid rgba(34,197,94,0.16);">
+                        <div class="small text-uppercase" style="color: var(--cockpit-muted);">Comment Ready</div>
+                        <div class="fs-4 fw-bold">{{ golden_eval.github_ready_count }}</div>
+                    </div>
+                </div>
+            </div>
+            <p class="small mt-3 mb-0" style="color: var(--cockpit-muted);">
+                Gate policy: findings below 0.60 are hidden by default; findings at 0.80 or severe findings above 0.70 are GitHub comment-ready.
+            </p>
+        </div>
+    </div>
+</div>
+
+<div class="cockpit-card mb-4">
+    <div class="p-3" style="border-bottom: 1px solid var(--cockpit-border);">
+        <h5 class="mb-0"><i class="bi bi-table me-1" style="color: var(--cockpit-primary);"></i> Rule-level Quality</h5>
+    </div>
+    <div class="table-responsive">
+        <table class="table table-dark table-hover align-middle mb-0">
+            <thead>
+                <tr>
+                    <th>Rule</th>
+                    <th>Expected</th>
+                    <th>TP</th>
+                    <th>FP</th>
+                    <th>FN</th>
+                    <th>Visible</th>
+                    <th>GitHub Ready</th>
+                    <th>Precision</th>
+                    <th>Recall</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for rule_id, metric in golden_eval.rule_metrics.items() %}
+                <tr>
+                    <td><code style="color: var(--cockpit-primary);">{{ rule_id }}</code></td>
+                    <td>{{ metric.expected }}</td>
+                    <td style="color: var(--cockpit-success);">{{ metric.true_positive }}</td>
+                    <td style="color: var(--cockpit-danger);">{{ metric.false_positive }}</td>
+                    <td style="color: var(--cockpit-danger);">{{ metric.false_negative }}</td>
+                    <td>{{ metric.visible }}</td>
+                    <td>{{ metric.github_ready }}</td>
+                    <td>{{ (metric.precision * 100)|int }}%</td>
+                    <td>{{ (metric.recall * 100)|int }}%</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+
+<div class="cockpit-card">
+    <div class="p-3" style="border-bottom: 1px solid var(--cockpit-border);">
+        <h5 class="mb-0"><i class="bi bi-list-check me-1" style="color: var(--cockpit-primary);"></i> Case Results</h5>
+    </div>
+    <div class="p-3">
+        <div class="row g-3">
+            {% for case in golden_eval.cases %}
+            <div class="col-md-6">
+                <div class="p-3 rounded h-100" style="border: 1px solid var(--cockpit-border); background: rgba(148,163,184,0.04);">
+                    <div class="d-flex justify-content-between gap-2">
+                        <strong style="font-size: 0.9rem;">{{ case.title }}</strong>
+                        {% if case.missing_rule_ids or case.unexpected_rule_ids %}
+                            <span class="badge bg-danger">check</span>
+                        {% else %}
+                            <span class="badge bg-success">pass</span>
+                        {% endif %}
+                    </div>
+                    <div class="small mt-2" style="color: var(--cockpit-muted);">
+                        <code>{{ case.case_id }}</code>
+                    </div>
+                    <div class="small mt-2">
+                        Expected: {{ case.expected_rule_ids|join(", ") if case.expected_rule_ids else "none" }}<br>
+                        Detected: {{ case.detected_rule_ids|join(", ") if case.detected_rule_ids else "none" }}
+                    </div>
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+    </div>
+</div>
+{% endblock %}

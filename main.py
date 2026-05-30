@@ -48,6 +48,19 @@ def index(request: Request):
     })
 
 
+@app.get("/evaluation", response_class=HTMLResponse)
+def evaluation_page(request: Request):
+    report = run_golden_evaluation()
+    ordinary_baseline_count = report.expected_total + report.false_positive_count
+    gate_filtered_count = max(0, ordinary_baseline_count - report.visible_expected_count)
+    return templates.TemplateResponse("evaluation.html", {
+        "request": request,
+        "golden_eval": report,
+        "ordinary_baseline_count": ordinary_baseline_count,
+        "gate_filtered_count": gate_filtered_count,
+    })
+
+
 @app.get("/tasks", response_class=HTMLResponse)
 def task_history(request: Request, page: int = 1, q: str = "", status: str = ""):
     db = SessionLocal()
