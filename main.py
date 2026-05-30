@@ -9,7 +9,7 @@ from sqlalchemy.orm import Session
 from config import settings
 from app.database import init_db, get_db, SessionLocal
 from app.models import PRReviewTask, PRChangedFile, PRReviewFinding
-from app.routers import tasks, reports
+from app.routers import evaluation, tasks, reports
 
 
 @asynccontextmanager
@@ -31,6 +31,7 @@ app.mount("/static", StaticFiles(directory="static"), name="static")
 # API routers
 app.include_router(tasks.router)
 app.include_router(reports.router)
+app.include_router(evaluation.router)
 
 # Templates
 templates = Jinja2Templates(directory="templates")
