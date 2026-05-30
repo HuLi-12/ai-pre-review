@@ -1,22 +1,128 @@
-# AI Code Review
+# AI Review Cockpit
 
-AI-powered GitHub Pull Request code review assistant. Automatically analyzes PR diffs, identifies risks, and generates structured review reports.
+Not just another AI code reviewer. We analyze changed lines, score file risk,
+combine static rules with AI reasoning, and only surface findings with **evidence and confidence**.
 
-## V1.1 Features
+[![CI](https://github.com/HuLi-12/ai-pre-review/actions/workflows/ci.yml/badge.svg)](https://github.com/HuLi-12/ai-pre-review/actions/workflows/ci.yml)
 
-- **GitHub PR Integration** — Parse PR URLs, fetch diffs, file contents, and post comments
-- **Patch-Only Static Scanning** — Rules only scan added/modified lines, avoiding false positives on unchanged code (S001-S015)
-- **File Risk Scoring** — Score files by path, change size, and keywords to prioritize AI analysis depth (`deep`/`normal`/`skip`)
-- **Multi-Stage AI Review** — PR summary → file-level analysis → cross-file consistency check
-- **Rule + AI Hybrid** — Deterministic rules + semantic AI with confidence-based merging
-- **Confidence Filtering** — `>= 0.80` GitHub-ready, `0.60-0.79` report only, `< 0.60` hidden
-- **Signature Dedup** — Merge findings by file + type + line bucket + title similarity
-- **GitHub Comment** — Optional auto-posting of high-confidence findings to PR conversation
-- **Web Dashboard** — Three-panel report view with severity/confidence filters and feedback buttons
+---
+
+## Demo
+
+> Full walkthrough with screenshots: [`docs/demo/README.md`](docs/demo/README.md)
+
+### 1. Submit a PR
+
+Enter a GitHub PR URL on the home page. The system fetches the diff, file list, and commit metadata — then launches a 7-stage analysis pipeline.
+
+```
+Home Page ─→ Progress Page ─→ Cockpit Report ─→ (optional) GitHub Comment
+```
+
+### 2. Watch the Pipeline
+
+Real-time progress tracking across all 7 stages:
+
+| # | Stage | What Happens |
+|---|-------|-------------|
+| 1 | FETCHING_PR | Parse PR URL, fetch metadata + diff via GitHub API |
+| 2 | BUILDING_CONTEXT | Identify related files, build multi-layer context |
+| 3 | STATIC_SCAN | Run 15 deterministic rules on patch added lines |
+| 4 | AI_PR_SUMMARY | LLM generates PR-level summary |
+| 5 | AI_FILE_REVIEW | Per-file deep/normal analysis by risk score |
+| 6 | AI_CROSS_FILE | Cross-file consistency check (≥2 files) |
+| 7 | MERGING_RESULTS | Signature dedup + confidence scoring + threshold filter |
+
+### 3. Review the Cockpit Report
+
+The report page is a **Review Decision Cockpit** with 5 integrated modules:
+
+```
+┌──────────────────────────────────────────────────────────────┐
+│  Metric Cards: Risk Level | Confidence | Findings | Decision  │
+├──────────────┬───────────────────────────────────────────────┤
+│ File Risk Map│ Pipeline Bar: Raw→Deduped→Visible→GH Ready    │
+│              │ Review Decision Card with reasons             │
+│ Click file   │ Findings by severity with Evidence Chain      │
+│ to filter    │ Feedback buttons: Valid / FP / Resolved       │
+└──────────────┴───────────────────────────────────────────────┘
+```
+
+### 4. GitHub Comment
+
+High-confidence findings (≥ 0.80, or ≥ 0.70 for critical/high) can be auto-posted to the PR conversation. Re-running the review updates the existing comment — **no spam, no duplicates**.
+
+---
+
+## Innovation Points
+
+### Changed-Line Review
+
+Traditional AI review scans old code and flags pre-existing issues as if they were new. We **only analyze added and modified lines** in the patch — no legacy noise, no false attribution.
+
+```python
+# parse_patch() extracts only added lines from unified diff
+added_lines = [line for line in patch if line.startswith('+') and not line.startswith('+++')]
+```
+
+### Risk-Aware Routing
+
+Not all files are equal. We score each file by path pattern, change size, and keyword to decide analysis depth:
+
+```
+controller.py  → score 85 → deep review (full content + related files)
+README.md      → score 10 → skip (no analysis needed)
+service.py     → score 55 → normal review (patch only + summary context)
+```
+
+### Hybrid Rule + AI Engine
+
+- **15 static rules** catch deterministic issues: hardcoded passwords (S005), unsafe SQL (S014), empty catch blocks (S003), N+1 queries (S011)
+- **AI** catches what rules cannot: missing null check (S006), transaction risk (S013), missing pagination (S012)
+- Both agree → **confidence bonus** (+0.20)
+
+### Confidence Gate
+
+Every finding has a confidence score. Three thresholds control visibility:
+
+| Threshold | Visibility | Use Case |
+|-----------|-----------|----------|
+| ≥ 0.80 | GitHub-ready | Auto-comment to PR |
+| 0.60–0.79 | Report only | Visible in cockpit, not posted |
+| < 0.60 | Hidden | Filtered by default |
+
+Confidence formula: `base + evidence + agreement - uncertainty`
+
+### Signature Dedup
+
+Merges duplicate findings by file + type + line bucket + title similarity. Same issue caught by both static rule and AI? **Automatically merged with an agreement bonus.**
+
+### Evidence Chain
+
+Every finding carries a structured evidence trace showing exactly why it was flagged:
+
+```
+Changed File → Line Number → Rule Match / AI Source → Confidence Gate
+```
+
+Example:
+```
+user_service.py → line 42 → S005 hardcoded_password → 85% (GitHub-ready)
+```
+
+### Review Decision Cockpit
+
+The report page is designed as a **merge decision aid**, not just a finding list:
+
+- **Pipeline Bar**: See how raw findings are filtered through dedup → confidence gate → GitHub-ready
+- **File Risk Map**: Visual risk scores per file with click-to-filter
+- **Review Decision Card**: "Block merge" / "Fix before merge" / "Review recommended" / "Ready to merge"
+- **Evidence Chain**: Per-finding evidence trace for explainability
+- **Feedback System**: Mark findings as Valid / False Positive / Resolved
+
+---
 
 ## Architecture
-
-The system follows a multi-stage pipeline architecture that transforms a GitHub PR into a structured review report:
 
 ```mermaid
 flowchart TB
@@ -48,7 +154,7 @@ flowchart TB
     style Output fill:#4a148c,color:#fff
 ```
 
-### Review Pipeline Stages
+### Pipeline Stages
 
 | Stage | Step | Description |
 |-------|------|-------------|
@@ -59,6 +165,27 @@ flowchart TB
 | 5 | AI_FILE_REVIEW | Per-file deep/normal analysis by risk score |
 | 6 | AI_CROSS_FILE | Cross-file consistency check (≥2 files) |
 | 7 | MERGING_RESULTS | Signature dedup + confidence scoring + threshold filter |
+
+---
+
+## Quick Start
+
+```bash
+# 1. Configure environment
+cp .env.example .env
+# Edit .env: set GITHUB_TOKEN, AI_API_KEY, AI_BASE_URL
+
+# 2. Install dependencies
+pip install -r requirements.txt
+
+# 3. Start server
+python main.py
+
+# 4. Open browser
+open http://localhost:8000
+```
+
+---
 
 ## Testing
 
@@ -76,48 +203,7 @@ Run tests:
 python -m pytest tests/ -v
 ```
 
-## CI/CD
-
-[![CI](https://github.com/HuLi-12/ai-pre-review/actions/workflows/ci.yml/badge.svg)](https://github.com/HuLi-12/ai-pre-review/actions/workflows/ci.yml)
-
-On push/PR to `master`: Python 3.10, install deps, run 28 tests, verify import integrity.
-
-## Quick Start
-
-```bash
-# 1. Configure environment
-cp .env.example .env
-# Edit .env: set GITHUB_TOKEN, AI_API_KEY
-
-# 2. Install dependencies
-pip install -r requirements.txt
-
-# 3. Start server
-python main.py
-
-# 4. Open browser
-# http://localhost:8000
-```
-
-## Demo Scenarios
-
-Run the demo verification script to test core components:
-
-```bash
-python test_demo.py
-```
-
-### PR 1: Low Risk (Documentation)
-- **Input**: README.md changes only
-- **Expected**: LOW risk, no findings, merge suggested
-
-### PR 2: Medium Risk (Business Logic)
-- **Input**: Service method changes without test updates
-- **Expected**: MEDIUM risk, S015 test gap flagged
-
-### PR 3: High Risk (Security Issues)
-- **Input**: Hardcoded passwords, unsafe SQL, loop DB calls, missing auth
-- **Expected**: HIGH risk, S005/S014 visible (conf=0.85), print/TODO filtered
+---
 
 ## Project Structure
 
@@ -127,7 +213,7 @@ config.py                        # Settings (GitHub/AI/DB)
 app/
   github_client.py               # GitHub API: PR info, diff, comments
   static_scanner.py              # 15 static rules, patch-only scanning
-  diff_utils.py                  # Unified diff parser
+  diff_utils.py                  # Unified diff parser (added lines only)
   risk_scorer.py                 # File risk scoring engine
   ai_client.py                   # LLM client with structured prompts
   confidence_calculator.py       # Confidence scoring with rule overrides
@@ -137,7 +223,10 @@ app/
   models.py / schemas.py         # DB models + API schemas
   routers/                       # REST API endpoints
 templates/                       # Jinja2 web UI
+docs/demo/                       # Demo walkthrough
 ```
+
+---
 
 ## API
 
@@ -145,10 +234,13 @@ templates/                       # Jinja2 web UI
 |--------|------|-------------|
 | POST | `/api/tasks` | Create PR review task |
 | GET | `/api/tasks/{id}` | Get task status |
-| GET | `/api/tasks/{id}/report` | Get review report |
-| POST | `/api/findings/{id}/feedback` | Submit feedback |
-| GET | `/api/tasks/{id}/files` | List changed files |
+| GET | `/api/tasks/{id}/report` | Get review report with findings |
+| GET | `/api/tasks/{id}/files` | List changed files with risk scores |
+| GET | `/api/tasks/{id}/file/{file_id}/findings` | File-level findings |
+| POST | `/api/findings/{id}/feedback` | Submit feedback (VALID/FP/RESOLVED) |
+
+---
 
 ## Tech Stack
 
-Python + FastAPI + SQLAlchemy + SQLite + Jinja2 + Bootstrap 5
+Python 3.10+ · FastAPI · SQLAlchemy · SQLite · Jinja2 · Bootstrap 5
