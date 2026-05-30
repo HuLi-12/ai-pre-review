@@ -148,6 +148,23 @@ def view_report(request: Request, task_id: int):
         elif all(f.severity in ("medium", "low") for f in findings if f.severity):
             merge_suggestion = "建议 review 后合并"
 
+        github_ready = sum(1 for f in findings
+                           if (f.confidence or 0) >= 0.80
+                           or (f.severity in ("critical", "high") and (f.confidence or 0) >= 0.70))
+
+        if counts["critical"] > 0:
+            review_decision = "Block merge"
+            decision_reason = f"存在 {counts['critical']} 个 critical 问题，禁止合并"
+        elif counts["high"] > 0:
+            review_decision = "Fix before merge"
+            decision_reason = f"存在 {counts['high']} 个 high 问题，建议修复后再合并"
+        elif counts["medium"] > 0:
+            review_decision = "Review recommended"
+            decision_reason = f"存在 {counts['medium']} 个 medium 风险项，建议确认后合并"
+        else:
+            review_decision = "Ready to merge"
+            decision_reason = "未发现高置信阻塞问题"
+
         return templates.TemplateResponse("report.html", {
             "request": request,
             "task": task,
@@ -160,6 +177,14 @@ def view_report(request: Request, task_id: int):
                 "merge_suggestion": merge_suggestion,
             },
             "key_focus_points": key_focus[:10],
+            "cockpit_metrics": {
+                "raw_count": task.raw_finding_count or max(len(findings), 1),
+                "deduped_count": task.deduped_finding_count or len(findings),
+                "visible_count": task.visible_finding_count or len(findings),
+                "github_ready": task.github_ready_count or github_ready,
+                "review_decision": review_decision,
+                "decision_reason": decision_reason,
+            },
         })
     finally:
         db.close()
