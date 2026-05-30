@@ -123,10 +123,17 @@ def view_report(request: Request, task_id: int):
 
         findings = db.query(PRReviewFinding).filter(
             PRReviewFinding.task_id == task_id
-        ).order_by(
-            PRReviewFinding.severity.desc(),
-            PRReviewFinding.confidence.desc()
         ).all()
+
+        # Sort by severity rank (critical > high > medium > low), then confidence desc
+        SEVERITY_RANK = {"critical": 4, "high": 3, "medium": 2, "low": 1}
+        findings.sort(
+            key=lambda f: (
+                SEVERITY_RANK.get((f.severity or "").lower(), 0),
+                float(f.confidence or 0),
+            ),
+            reverse=True,
+        )
 
         files = db.query(PRChangedFile).filter(
             PRChangedFile.task_id == task_id
