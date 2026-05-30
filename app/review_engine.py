@@ -50,7 +50,7 @@ class ReviewEngine:
             # ---- Stage 1: Fetch PR Info ----
             await self._update_progress(task, db, "FETCHING_PR", 10)
             pr_info = self.github.get_pr_info(owner, repo, number)
-            changed_files = self.github.get_changed_files(owner, repo, number)
+            changed_files = self.github.get_changed_files(owner, repo, number, head_sha=pr_info.commit_sha)
             task.commit_sha = pr_info.commit_sha
 
             # Save changed files to DB
@@ -58,7 +58,12 @@ class ReviewEngine:
 
             # ---- Stage 2: Build Context ----
             await self._update_progress(task, db, "BUILDING_CONTEXT", 20)
-            context_builder = ContextBuilder(self.github, owner, repo, ref=pr_info.source_branch or "main")
+            context_builder = ContextBuilder(
+                self.github,
+                owner,
+                repo,
+                ref=pr_info.commit_sha or pr_info.source_branch or "main",
+            )
             review_context = context_builder.build(changed_files)
 
             # ---- Stage 3: Static Rule Scanning (on patch only) ----
@@ -487,15 +492,7 @@ class ReviewEngine:
 
             # For rule-only findings, give them their base confidence
             if best.get("source") == "static_rule":
-                rule_id = best.get("type", "")
-                if rule_id in ("S005", "S014"):
-                    best["confidence"] = 0.85  # Deterministic high-risk rules, always show
-                elif best.get("severity") == "critical":
-                    best["confidence"] = 0.75
-                elif best.get("severity") == "high":
-                    best["confidence"] = 0.65
-                else:
-                    best["confidence"] = 0.45
+                best["confidence"] = calculate_confidence(best, has_rule_match=has_rule and has_ai)
             else:
                 # Calculate confidence with agreement bonus
                 best["confidence"] = calculate_confidence(best, has_rule_match=has_rule)

@@ -1,6 +1,5 @@
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
 from typing import Optional, List
-from datetime import datetime
 
 
 class CreateTaskRequest(BaseModel):
@@ -10,16 +9,17 @@ class CreateTaskRequest(BaseModel):
 
 
 class TaskResponse(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
     task_id: int
     status: str
     progress: Optional[int] = 0
     current_step: Optional[str] = None
 
-    class Config:
-        from_attributes = True
-
 
 class FindingItem(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
     id: int
     file_path: Optional[str] = None
     line_number: Optional[int] = None
@@ -31,11 +31,10 @@ class FindingItem(BaseModel):
     confidence: Optional[float] = None
     evidence_json: Optional[str] = None
 
-    class Config:
-        from_attributes = True
-
 
 class ReportResponse(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
     task_id: int
     summary: Optional[str] = None
     risk_level: Optional[str] = None
@@ -47,9 +46,6 @@ class ReportResponse(BaseModel):
     deduped_finding_count: int = 0
     visible_finding_count: int = 0
     github_ready_count: int = 0
-
-    class Config:
-        from_attributes = True
 
 
 class FeedbackRequest(BaseModel):

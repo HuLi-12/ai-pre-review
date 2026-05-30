@@ -1,134 +1,134 @@
-# AI Review Cockpit — Evaluation Criteria Mapping
+# AI Review Cockpit — 评审指标映射
 
-This document maps the project's implementations to standard evaluation dimensions. Each section lists what was delivered and where to find it.
-
----
-
-## 1. Product Design (UI/UX)
-
-| Criteria | Implementation | Location |
-|----------|---------------|----------|
-| Landing page | Product-oriented home page with hero, feature cards, pipeline preview | `templates/index.html`, `main.py:37-39` |
-| Task progress | Real-time polling progress bar with stage checklist and file risk bars | `templates/task_progress.html` |
-| Report cockpit | Four metric cards, file risk map, pipeline bar, review decision card | `templates/report.html` |
-| Evidence chain | Per-finding structured evidence trace showing source→confidence chain | `templates/report.html` (finding cards) |
-| Rules page | Static rule reference page with code examples (bad/good) per rule | `templates/rules.html`, `main.py:80-97` |
-| Task history | Paginated task list with search, status filter, action links | `templates/task_history.html`, `main.py:42-75` |
-| Responsive layout | Bootstrap 5 grid with sidebar, cards, interactive filtering | All templates extend `templates/base.html` |
-| shadcn/ui prototype | Independent React + Tailwind + shadcn/ui dashboard demonstrating future migration path | `frontend-prototype/` |
+本文档将项目的实现映射到标准评审维度。每个章节列出已交付的内容及其代码位置。
 
 ---
 
-## 2. Functionality
+## 1. 产品设计（UI/UX）
 
-| Criteria | Implementation | Location |
-|----------|---------------|----------|
-| PR input | GitHub PR URL parsing and validation | `app/github_client.py:parse_pr_url()` |
-| Diff fetching | GitHub API integration for PR diff, metadata, changed files | `app/github_client.py` |
-| 15 static rules | Deterministic patch-only scanning (S001–S015) | `app/static_scanner.py` |
-| Changed-line analysis | Parse unified diff, extract only added/modified lines | `app/diff_utils.py:parse_patch()` |
-| File risk scoring | Score by path patterns, change size, content keywords | `app/risk_scorer.py` |
-| AI file review | LLM-based per-file analysis with deep/normal/skip routing | `app/ai_client.py` |
-| AI cross-file analysis | Cross-file consistency check (requires ≥2 changed files) | `app/review_engine.py:_cross_file_analysis()` |
-| PR summary generation | LLM generates one-line summary, module changes, business impact | `app/ai_client.py:summarize_pr()` |
-| Signature dedup | Dedup by file + type + line bucket + title | `app/review_engine.py:_merge_findings()` |
-| Confidence scoring | Base + evidence + agreement bonus − uncertainty penalty | `app/confidence_calculator.py` |
-| GitHub comment | Post high-confidence findings to PR with idempotent updates | `app/report_generator.py:generate_github_comment()` |
-| Feedback system | Mark findings as Valid / False Positive / Resolved | `app/routers/reports.py:submit_feedback()` |
-| REST API | 6 endpoints covering task CRUD, report, files, feedback | `app/routers/` |
+| 指标 | 实现 | 位置 |
+|------|------|------|
+| 首页 | 产品导向的着陆页，包含 Hero、功能卡片、流水线预览 | `templates/index.html`、`main.py:37-39` |
+| 任务进度 | 实时轮询进度条，包含阶段清单和文件风险条 | `templates/task_progress.html` |
+| 报告驾驶舱 | 四个指标卡片、文件风险地图、流水线条、评审决策卡片 | `templates/report.html` |
+| 证据链 | 每个发现的结构化证据轨迹，展示来源→置信度链条 | `templates/report.html`（发现卡片） |
+| 规则页面 | 静态规则参考页，每条规则包含代码示例（好/坏） | `templates/rules.html`、`main.py:80-97` |
+| 任务历史 | 分页任务列表，支持搜索、状态过滤、操作链接 | `templates/task_history.html`、`main.py:42-75` |
+| 响应式布局 | Bootstrap 5 栅格系统，包含侧边栏、卡片、交互式过滤 | 所有模板继承 `templates/base.html` |
+| shadcn/ui 原型 | 独立的 React + Tailwind + shadcn/ui 仪表盘，展示未来迁移路径 | `frontend-prototype/` |
 
 ---
 
-## 3. Interactivity
+## 2. 功能
 
-| Criteria | Implementation | Location |
-|----------|---------------|----------|
-| Real-time progress | Auto-polling every 2s on task progress page | `templates/task_progress.html` (JavaScript) |
-| File risk map | Visual risk bars with click-to-filter findings | `templates/report.html` (JavaScript) |
-| Severity tabs | Filter findings by critical/high/medium/low tabs | `templates/report.html` (JavaScript) |
-| Confidence filter | Toggle to hide low-confidence findings (< 0.60) | `templates/report.html` (JavaScript) |
-| Keyboard shortcuts | 1-5 filter switch, F next finding, R refresh | `templates/report.html` (JavaScript) |
-| Feedback buttons | Inline Valid/FP/Resolved with POST feedback API | `templates/report.html`, `app/routers/reports.py` |
-| Search & filter | Task history search by URL, filter by status | `templates/task_history.html`, `main.py:42-75` |
-| Pagination | 20-task-per-page pagination in history view | `main.py:52-56` |
-
----
-
-## 4. Innovation
-
-| Innovation | Description | Location |
-|-----------|-------------|----------|
-| Changed-line review | Only analyze added lines from unified diff — zero noise from legacy code | `app/diff_utils.py` |
-| Risk-aware routing | File scoring (-2 to 15) determines analysis depth (deep/normal/skip) | `app/risk_scorer.py` |
-| Hybrid rule + AI | 15 static rules + LLM analysis with agreement bonus on overlap | `app/review_engine.py`, `app/static_scanner.py`, `app/ai_client.py` |
-| Confidence gate | Three-tier threshold: ≥0.80 GitHub, 0.60–0.79 report, <0.60 hidden | `app/confidence_calculator.py` |
-| Evidence chain | Structured JSON per finding showing source→confidence trace | `app/review_engine.py`, `templates/report.html` |
-| Review Decision Cockpit | Report designed as merge decision aid, not just finding list | `templates/report.html`, `main.py:158-169` |
-| Signature dedup | Multi-dimension dedup (file + type + line bucket + title) | `app/review_engine.py:_merge_findings()` |
+| 指标 | 实现 | 位置 |
+|------|------|------|
+| PR 输入 | GitHub PR 地址解析与验证 | `app/github_client.py:parse_pr_url()` |
+| Diff 获取 | GitHub API 集成，获取 PR diff、元数据、变更文件 | `app/github_client.py` |
+| 15 条静态规则 | 确定性的仅 patch 扫描（S001–S015） | `app/static_scanner.py` |
+| 变更行分析 | 解析 unified diff，仅提取新增/修改行 | `app/diff_utils.py:parse_patch()` |
+| 文件风险评分 | 按路径模式、变更大小、内容关键词评分 | `app/risk_scorer.py` |
+| AI 文件审查 | 基于 LLM 的逐文件分析，支持深度/普通/跳过路由 | `app/ai_client.py` |
+| AI 跨文件分析 | 跨文件一致性检查（需要 ≥2 个变更文件） | `app/review_engine.py:_cross_file_analysis()` |
+| PR 摘要生成 | LLM 生成一行摘要、模块变更、业务影响 | `app/ai_client.py:summarize_pr()` |
+| 签名去重 | 按文件 + 类型 + 行号桶 + 标题去重 | `app/review_engine.py:_merge_findings()` |
+| 置信度评分 | 基础分 + 证据分 + 同意加成 − 不确定性扣减 | `app/confidence_calculator.py` |
+| GitHub 评论 | 将高置信度发现发布到 PR，支持幂等更新 | `app/report_generator.py:generate_github_comment()` |
+| 反馈系统 | 标记发现为有效 / 误报 / 已解决 | `app/routers/reports.py:submit_feedback()` |
+| REST API | 6 个端点，覆盖任务 CRUD、报告、文件、反馈 | `app/routers/` |
 
 ---
 
-## 5. Architecture
+## 3. 交互性
 
-| Criteria | Implementation | Location |
-|----------|---------------|----------|
-| Framework | FastAPI with automatic OpenAPI docs | `main.py` |
-| Database | SQLAlchemy + SQLite with 4 models | `app/database.py`, `app/models.py` |
-| 7-stage pipeline | FETCHING_PR → BUILDING_CONTEXT → STATIC_SCAN → AI_PR_SUMMARY → AI_FILE_REVIEW → AI_CROSS_FILE → MERGING_RESULTS | `app/review_engine.py:run_review()` |
-| Modular design | 12 modules with single responsibility (scanner, scorer, confidence, diff, context, etc.) | `app/` |
-| Router separation | API routers separated from page routes | `app/routers/` (API), `main.py` (pages) |
-| Configuration | Environment-based config with `.env` support | `config.py` |
-| Template inheritance | Base layout extended by all pages | `templates/base.html` |
-
----
-
-## 6. Code Quality
-
-| Criteria | Implementation | Location |
-|----------|---------------|----------|
-| Test coverage | 28 unit tests across 5 suites | `tests/` |
-| Test scope | Diff parsing, static rules, risk scoring, confidence calculation, URL parsing | `tests/test_diff_utils.py`, `tests/test_static_scanner.py`, `tests/test_risk_scorer.py`, `tests/test_confidence_calculator.py`, `tests/test_github_client.py` |
-| CI | GitHub Actions: lint, test, import-check on Python 3.10 | `.github/workflows/ci.yml` |
-| Type hints | Full type annotations on all functions and dataclasses | All `app/` modules |
-| Error handling | HTTPException for API errors, task status for pipeline failures | `app/review_engine.py`, `app/routers/` |
-| Data consistency | Severity sorting by rank (not string), confidence-aware filtering, fallback defaults | `main.py:126-134`, `app/routers/reports.py:30-33` |
+| 指标 | 实现 | 位置 |
+|------|------|------|
+| 实时进度 | 任务进度页每 2 秒自动轮询 | `templates/task_progress.html`（JavaScript） |
+| 文件风险地图 | 可视化风险条，点击可过滤发现 | `templates/report.html`（JavaScript） |
+| 严重等级标签页 | 按 critical/high/medium/low 过滤发现 | `templates/report.html`（JavaScript） |
+| 置信度过滤 | 开关隐藏低置信度发现（< 0.60） | `templates/report.html`（JavaScript） |
+| 键盘快捷键 | 1–5 切换过滤、F 下一条、R 刷新 | `templates/report.html`（JavaScript） |
+| 反馈按钮 | 内联有效/误报/已解决，通过 POST 反馈 API | `templates/report.html`、`app/routers/reports.py` |
+| 搜索与过滤 | 按地址搜索任务历史，按状态过滤 | `templates/task_history.html`、`main.py:42-75` |
+| 分页 | 历史视图每页 20 条任务 | `main.py:52-56` |
 
 ---
 
-## 7. PR Process
+## 4. 创新
 
-| PR | Branch | Description |
-|----|--------|-------------|
-| #1 | `docs/architecture` | Architecture diagram, test docs, CI badge setup |
-| #2 | `ci/add-github-actions` | GitHub Actions CI workflow (lint, test, Python 3.10) |
-| #3 | `test/add-core-tests` | 28 unit tests across 5 core modules |
-| #4 | `fix/report-data-consistency` | File ID binding, severity sorting, report field alignment |
-| #5 | `demo/high-risk-pr` | Demo data for high-risk PR scenarios |
-| #6 | `feat/task-history` | Paginated task history list with search and status filter |
-| #7 | `feat/github-comment-idempotent` | Idempotent GitHub comment updates |
-| #8 | `feat/report-ui-optimization` | Report page interaction optimization |
-| #9 | `feat/rules-explanation` | Static rules explanation page (S001–S015) |
-| #10 | `feat/review-cockpit-home` | Product landing page with cockpit branding |
-| #11 | `feat/report-cockpit-dashboard` | Cockpit dashboard with risk map and pipeline visualization |
-| #12 | `feat/evidence-chain` | Structured evidence chain for explainable findings |
-| #13 | `prototype/shadcn-review-dashboard` | React + shadcn/ui frontend prototype |
-| #14 | `feat/real-cockpit-metrics` | Real pipeline metric persistence in database |
-| #15 | `feat/demo-documentation` | End-to-end demo guide and README innovation summary |
-| #16 | `fix/cockpit-data-consistency` | Sort ordering, brand naming, README accuracy fixes |
-| — | `docs/final-demo-walkthrough` | Final review doc, evaluation mapping, README highlights |
-
-**Pattern:** Each PR delivers a single concern (feat/fix/docs/test/ci/prototype). Branches are short-lived and merged via standard PR flow.
+| 创新点 | 说明 | 位置 |
+|--------|------|------|
+| 变更行审查 | 仅分析 unified diff 中的新增行——零遗留代码噪音 | `app/diff_utils.py` |
+| 风险感知路由 | 文件评分（-2 到 15）决定分析深度（深度/普通/跳过） | `app/risk_scorer.py` |
+| 混合规则 + AI | 15 条静态规则 + LLM 分析，重叠时给予同意加成 | `app/review_engine.py`、`app/static_scanner.py`、`app/ai_client.py` |
+| 置信度门禁 | 三层阈值：≥0.80 GitHub、0.60–0.79 报告、<0.60 隐藏 | `app/confidence_calculator.py` |
+| 证据链 | 每个发现的结构化 JSON，展示来源→置信度轨迹 | `app/review_engine.py`、`templates/report.html` |
+| 评审决策驾驶舱 | 报告设计为合并决策辅助工具，而非仅仅发现列表 | `templates/report.html`、`main.py:158-169` |
+| 签名去重 | 多维度去重（文件 + 类型 + 行号桶 + 标题） | `app/review_engine.py:_merge_findings()` |
 
 ---
 
-## 8. Summary
+## 5. 架构
 
-| Dimension | Score Rationale |
-|-----------|----------------|
-| Product Design | 6 UI pages (home, progress, report, rules, history, base), consistent cockpit branding |
-| Functionality | Complete 7-stage pipeline from PR input to GitHub comment, 15 rules + AI |
-| Interactivity | Real-time polling, keyboard shortcuts, click-to-filter, feedback system |
-| Innovation | Changed-line review, risk-aware routing, hybrid rule+AI, confidence gate |
-| Architecture | 12 modules, 4 DB models, 6 API endpoints, FastAPI + SQLAlchemy |
-| Code Quality | 28 tests passing, type hints, CI, error handling throughout |
-| PR Process | 16+ staged PRs with clear scoping and incremental delivery |
+| 指标 | 实现 | 位置 |
+|------|------|------|
+| 框架 | FastAPI，自动 OpenAPI 文档 | `main.py` |
+| 数据库 | SQLAlchemy + SQLite，4 个模型 | `app/database.py`、`app/models.py` |
+| 7 阶段流水线 | FETCHING_PR → BUILDING_CONTEXT → STATIC_SCAN → AI_PR_SUMMARY → AI_FILE_REVIEW → AI_CROSS_FILE → MERGING_RESULTS | `app/review_engine.py:run_review()` |
+| 模块化设计 | 12 个模块，各司其职（scanner、scorer、confidence、diff、context 等） | `app/` |
+| 路由分离 | API 路由与页面路由分离 | `app/routers/`（API）、`main.py`（页面） |
+| 配置管理 | 基于环境变量的配置，支持 `.env` | `config.py` |
+| 模板继承 | 基础布局被所有页面继承 | `templates/base.html` |
+
+---
+
+## 6. 代码质量
+
+| 指标 | 实现 | 位置 |
+|------|------|------|
+| 测试覆盖 | 5 个套件共 28 个单元测试 | `tests/` |
+| 测试范围 | Diff 解析、静态规则、风险评分、置信度计算、URL 解析 | `tests/test_diff_utils.py`、`tests/test_static_scanner.py`、`tests/test_risk_scorer.py`、`tests/test_confidence_calculator.py`、`tests/test_github_client.py` |
+| CI | GitHub Actions：lint、test、import-check，Python 3.10 | `.github/workflows/ci.yml` |
+| 类型提示 | 所有函数和数据类完整类型注解 | 所有 `app/` 模块 |
+| 错误处理 | API 错误使用 HTTPException，流水线故障使用任务状态 | `app/review_engine.py`、`app/routers/` |
+| 数据一致性 | 严重等级按 rank 排序（非字符串），置信度感知过滤，兜底默认值 | `main.py:126-134`、`app/routers/reports.py:30-33` |
+
+---
+
+## 7. PR 流程
+
+| PR | 分支 | 说明 |
+|----|------|------|
+| #1 | `docs/architecture` | 架构图、测试文档、CI 徽章 |
+| #2 | `ci/add-github-actions` | GitHub Actions CI 工作流（lint、test、Python 3.10） |
+| #3 | `test/add-core-tests` | 5 个核心模块共 28 个单元测试 |
+| #4 | `fix/report-data-consistency` | 文件 ID 绑定、严重等级排序、报告字段对齐 |
+| #5 | `demo/high-risk-pr` | 高风险 PR 场景的演示数据 |
+| #6 | `feat/task-history` | 分页任务历史列表，支持搜索和状态过滤 |
+| #7 | `feat/github-comment-idempotent` | GitHub 评论幂等更新 |
+| #8 | `feat/report-ui-optimization` | 报告页面交互优化 |
+| #9 | `feat/rules-explanation` | 静态规则说明页面（S001–S015） |
+| #10 | `feat/review-cockpit-home` | 产品着陆页，驾驶舱品牌 |
+| #11 | `feat/report-cockpit-dashboard` | 驾驶舱仪表盘，风险地图和流水线可视化 |
+| #12 | `feat/evidence-chain` | 可解释性发现的结构化证据链 |
+| #13 | `prototype/shadcn-review-dashboard` | React + shadcn/ui 前端原型 |
+| #14 | `feat/real-cockpit-metrics` | 数据库中真实流水线指标持久化 |
+| #15 | `feat/demo-documentation` | 端到端操作指南和 README 创新总结 |
+| #16 | `fix/cockpit-data-consistency` | 排序顺序、品牌命名、README 准确性修复 |
+| — | `docs/final-demo-walkthrough` | 最终评审文档、评审指标映射、README 亮点 |
+
+**模式：** 每个 PR 聚焦单一关注点（feat/fix/docs/test/ci/prototype）。分支生命周期短，通过标准 PR 流程合并。
+
+---
+
+## 8. 总结
+
+| 维度 | 评分依据 |
+|------|---------|
+| 产品设计 | 6 个 UI 页面（首页、进度、报告、规则、历史、基础模板），一致的驾驶舱品牌 |
+| 功能完整性 | 从 PR 输入到 GitHub 评论的完整 7 阶段流水线，15 条规则 + AI |
+| 交互性 | 实时轮询、键盘快捷键、点击过滤、反馈系统 |
+| 创新性 | 变更行审查、风险感知路由、混合规则+AI、置信度门禁 |
+| 架构 | 12 个模块、4 个数据库模型、6 个 API 端点、FastAPI + SQLAlchemy |
+| 代码质量 | 28 个测试通过、类型提示、CI、全链路错误处理 |
+| PR 流程 | 16+ 个分阶段 PR，范围清晰，增量交付 |

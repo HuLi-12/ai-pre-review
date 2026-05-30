@@ -1,4 +1,5 @@
 import uvicorn
+from contextlib import asynccontextmanager
 from fastapi import FastAPI, Request
 from fastapi.responses import HTMLResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
@@ -7,13 +8,22 @@ from sqlalchemy.orm import Session
 
 from config import settings
 from app.database import init_db, get_db, SessionLocal
+from app.golden_evaluation import run_golden_evaluation
 from app.models import PRReviewTask, PRChangedFile, PRReviewFinding
-from app.routers import tasks, reports
+from app.routers import evaluation, tasks, reports
+
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    init_db()
+    yield
+
 
 app = FastAPI(
     title="AI Review Cockpit",
     description="Evidence-driven PR risk analysis cockpit — hybrid rule + AI review engine",
     version="1.2.0",
+    lifespan=lifespan,
 )
 
 # Static files
@@ -22,6 +32,7 @@ app.mount("/static", StaticFiles(directory="static"), name="static")
 # API routers
 app.include_router(tasks.router)
 app.include_router(reports.router)
+app.include_router(evaluation.router)
 
 # Templates
 templates = Jinja2Templates(directory="templates")
@@ -29,14 +40,12 @@ import json
 templates.env.filters["from_json"] = lambda s: json.loads(s) if s else []
 
 
-@app.on_event("startup")
-def startup():
-    init_db()
-
-
 @app.get("/", response_class=HTMLResponse)
 def index(request: Request):
-    return templates.TemplateResponse("index.html", {"request": request})
+    return templates.TemplateResponse("index.html", {
+        "request": request,
+        "golden_eval": run_golden_evaluation(),
+    })
 
 
 @app.get("/tasks", response_class=HTMLResponse)

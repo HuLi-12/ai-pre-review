@@ -1,7 +1,7 @@
 import re
 import base64
 from typing import Optional, List, Dict, Any
-from urllib.parse import urlparse
+from urllib.parse import quote
 
 import httpx
 from config import settings
@@ -63,9 +63,20 @@ class GitHubClient:
     def get_pr_info(self, owner: str, repo: str, number: int) -> PRInfo:
         """Fetch PR basic information"""
         url = f"{self.base_url}/repos/{owner}/{repo}/pulls/{number}"
-        resp = httpx.get(url, headers=self._get_headers(), timeout=30)
-        resp.raise_for_status()
-        data = resp.json()
+        try:
+            resp = httpx.get(url, headers=self._get_headers(), timeout=30)
+            resp.raise_for_status()
+            data = resp.json()
+        except httpx.HTTPStatusError as exc:
+            if exc.response.status_code in (403, 404):
+                return PRInfo(
+                    owner=owner,
+                    repo=repo,
+                    number=number,
+                    title=f"Public PR {owner}/{repo}#{number}",
+                    description="GitHub API metadata unavailable; using public diff fallback.",
+                )
+            raise
 
         commit_sha = ""
         if data.get("head") and data["head"].get("sha"):
@@ -85,12 +96,23 @@ class GitHubClient:
             updated_at=data.get("updated_at", ""),
         )
 
-    def get_changed_files(self, owner: str, repo: str, number: int) -> List[ChangedFile]:
+    def get_changed_files(
+        self,
+        owner: str,
+        repo: str,
+        number: int,
+        head_sha: Optional[str] = None,
+    ) -> List[ChangedFile]:
         """Fetch changed files with patch diff"""
         url = f"{self.base_url}/repos/{owner}/{repo}/pulls/{number}/files"
-        resp = httpx.get(url, headers=self._get_headers(accept="application/vnd.github.v3+json"), timeout=60)
-        resp.raise_for_status()
-        files_data = resp.json()
+        try:
+            resp = httpx.get(url, headers=self._get_headers(accept="application/vnd.github.v3+json"), timeout=60)
+            resp.raise_for_status()
+            files_data = resp.json()
+        except httpx.HTTPStatusError as exc:
+            if exc.response.status_code in (403, 404):
+                return self._get_changed_files_from_public_diff(owner, repo, number)
+            raise
 
         changed_files = []
         for f in files_data:
@@ -102,14 +124,13 @@ class GitHubClient:
             elif f.get("status") == "renamed":
                 change_type = "renamed"
 
-            raw_content = ""
-            if f.get("raw_url"):
-                try:
-                    raw_resp = httpx.get(f["raw_url"], timeout=30)
-                    if raw_resp.status_code == 200:
-                        raw_content = raw_resp.text
-                except Exception:
-                    pass
+            raw_content = self._get_changed_file_content(
+                owner,
+                repo,
+                f.get("filename", ""),
+                head_sha,
+                raw_url=f.get("raw_url"),
+            )
 
             changed_files.append(ChangedFile(
                 file_path=f.get("filename", ""),
@@ -122,9 +143,95 @@ class GitHubClient:
 
         return changed_files
 
+    def _get_changed_files_from_public_diff(self, owner: str, repo: str, number: int) -> List[ChangedFile]:
+        """Fetch and parse GitHub's public .diff endpoint as a no-token fallback."""
+        diff_url = f"https://github.com/{owner}/{repo}/pull/{number}.diff"
+        resp = httpx.get(
+            diff_url,
+            headers={"User-Agent": self.headers["User-Agent"]},
+            timeout=60,
+            follow_redirects=True,
+        )
+        resp.raise_for_status()
+        return self._parse_unified_diff_files(resp.text)
+
+    @staticmethod
+    def _parse_unified_diff_files(diff_text: str) -> List[ChangedFile]:
+        files = []
+        current_path = ""
+        current_lines = []
+        change_type = "modified"
+
+        def flush_current():
+            if not current_path:
+                return
+            patch = "\n".join(current_lines)
+            additions = sum(1 for line in current_lines if line.startswith("+") and not line.startswith("+++"))
+            deletions = sum(1 for line in current_lines if line.startswith("-") and not line.startswith("---"))
+            files.append(ChangedFile(
+                file_path=current_path,
+                change_type=change_type,
+                additions=additions,
+                deletions=deletions,
+                patch=patch,
+                raw_content="",
+            ))
+
+        for line in diff_text.splitlines():
+            if line.startswith("diff --git "):
+                flush_current()
+                current_lines = [line]
+                change_type = "modified"
+                parts = line.split()
+                if len(parts) >= 4:
+                    current_path = parts[3][2:] if parts[3].startswith("b/") else parts[3]
+                else:
+                    current_path = ""
+                continue
+
+            if not current_path:
+                continue
+
+            current_lines.append(line)
+            if line.startswith("new file mode"):
+                change_type = "added"
+            elif line.startswith("deleted file mode"):
+                change_type = "removed"
+            elif line.startswith("rename to "):
+                current_path = line.replace("rename to ", "", 1).strip()
+                change_type = "renamed"
+
+        flush_current()
+        return files
+
+    def _get_changed_file_content(
+        self,
+        owner: str,
+        repo: str,
+        path: str,
+        head_sha: Optional[str],
+        raw_url: Optional[str] = None,
+    ) -> str:
+        """Fetch file content from the exact PR head when possible."""
+        if head_sha and path:
+            content = self.get_file_content(owner, repo, path, ref=head_sha)
+            if content is not None:
+                return content
+
+        if raw_url:
+            try:
+                raw_resp = httpx.get(raw_url, headers=self._get_headers(), timeout=30)
+                if raw_resp.status_code == 200:
+                    return raw_resp.text
+            except Exception:
+                pass
+
+        return ""
+
     def get_file_content(self, owner: str, repo: str, path: str, ref: str = "main") -> Optional[str]:
         """Get file content from repository"""
-        url = f"{self.base_url}/repos/{owner}/{repo}/contents/{path}?ref={ref}"
+        encoded_path = quote(path, safe="/")
+        url = f"{self.base_url}/repos/{owner}/{repo}/contents/{encoded_path}?ref={quote(ref, safe='')}"
         try:
             resp = httpx.get(url, headers=self._get_headers(), timeout=30)
             resp.raise_for_status()

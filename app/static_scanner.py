@@ -4,6 +4,12 @@ from dataclasses import dataclass
 
 from app.diff_utils import parse_patch
 
+API_ENDPOINT_PATTERN = (
+    r'@(?:Post|Get|Put|Delete|Patch|RequestMapping)\b|'
+    r'@\s*(?:app|router|api|[\w_]*router)\.(?:get|post|put|delete|patch|route)\s*\('
+)
+DOCUMENTATION_EXTENSIONS = (".md", ".markdown", ".rst", ".txt", ".adoc")
+
 
 @dataclass
 class RuleFinding:
@@ -67,7 +73,7 @@ class StaticScanner:
             # S008: Missing auth check on new API
             _Rule("S008", "missing_auth_check", "high",
                   "New API method may be missing authentication/authorization",
-                  [r'@(?:Post|Get|Put|Delete|Patch|RequestMapping)\b']),
+                  [API_ENDPOINT_PATTERN]),
             # S009: Missing parameter validation
             _Rule("S009", "missing_validation", "medium",
                   "New API endpoint missing parameter validation",
@@ -105,6 +111,9 @@ class StaticScanner:
 
         This is the primary entry point — it only flags issues in NEW code.
         """
+        if file_path.lower().endswith(DOCUMENTATION_EXTENSIONS):
+            return []
+
         findings = []
         if not patch:
             return findings
@@ -198,12 +207,11 @@ class StaticScanner:
 
     def _check_missing_validation(self, file_path: str, added_lines: list, findings: List[RuleFinding]):
         """Check if a new API endpoint has parameter validation."""
-        api_annotation_pattern = r'@(?:Post|Get|Put|Delete|Patch|RequestMapping)\b'
         has_new_api = False
         api_line = 0
 
         for item in added_lines:
-            if re.search(api_annotation_pattern, item["content"]):
+            if re.search(API_ENDPOINT_PATTERN, item["content"], re.IGNORECASE):
                 has_new_api = True
                 api_line = item["new_line"]
                 break
