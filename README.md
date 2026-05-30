@@ -128,44 +128,64 @@ user_service.py → 第 42 行 → S005 hardcoded_password → 85%（GitHub 就�
 ```mermaid
 flowchart TB
     subgraph Input["输入层"]
-        A[GitHub PR URL] --> B[GitHubClient]
-        B -->|PR 信息 + Diff| C[ReviewEngine]
+        direction TB
+        A("GitHub PR URL") --> B["GitHubClient"]
+        B -->|"PR 信息 + Diff"| C["ReviewEngine"]
     end
 
-    subgraph Analysis["分析流水线"]
-        C --> D[StaticScanner<br/>15 条规则 S001-S015]
-        C --> E[ContextBuilder<br/>关联文件]
-        C --> F[RiskScorer<br/>文件风险评分]
-        E --> G[AIClient<br/>LLM 审查]
-        F --> G
-        D --> H[合并与去重]
-        G --> H
-        H --> I[ConfidenceCalculator]
+    subgraph Pipeline["分析流水线"]
+        direction TB
+        C --> D["StaticScanner<br/>15 条规则 S001–S015"]
+        C --> E["ContextBuilder<br/>关联文件检索"]
+        C --> F["RiskScorer<br/>文件风险评分"]
+        E & F --> G["AIClient<br/>LLM 审查"]
+        D & G --> H["Merge & Dedup<br/>签名去重"]
+        H --> I["ConfidenceCalculator<br/>置信度评分"]
     end
 
     subgraph Output["输出层"]
-        I --> J[ReportGenerator]
-        J --> K[(REST API<br/>FastAPI)]
-        J --> L[Web 仪表盘<br/>Jinja2+Bootstrap]
-        J --> M[GitHub PR 评论]
+        direction TB
+        I --> J["ReportGenerator<br/>报告生成"]
+        J --> K["(REST API)<br/>FastAPI"]
+        J --> L["Web Dashboard<br/>Jinja2 + Bootstrap"]
+        J --> M["GitHub Comment<br/>PR 评论"]
     end
 
-    style Input fill:#1a237e,color:#fff
-    style Analysis fill:#004d40,color:#fff
-    style Output fill:#4a148c,color:#fff
+    style Input fill:#e8f4fd,stroke:#2196f3,stroke-width:2px,color:#0d3b66
+    style Pipeline fill:#e8f5e9,stroke:#4caf50,stroke-width:2px,color:#1b5e20
+    style Output fill:#fce4ec,stroke:#e91e63,stroke-width:2px,color:#880e4f
 ```
 
 ### 流水线阶段
 
-| 阶段 | 步骤 | 说明 |
-|------|------|------|
-| 1 | FETCHING_PR | 解析 PR 地址，通过 GitHub API 获取元数据和 diff |
-| 2 | BUILDING_CONTEXT | 识别关联文件，构建多层上下文 |
-| 3 | STATIC_SCAN | 对 patch 新增行执行 15 条确定性规则 |
-| 4 | AI_PR_SUMMARY | LLM 生成 PR 级摘要 |
-| 5 | AI_FILE_REVIEW | 按风险分数对每个文件进行深度/普通分析 |
-| 6 | AI_CROSS_FILE | 跨文件一致性检查（≥2 个文件） |
-| 7 | MERGING_RESULTS | 签名去重 + 置信度评分 + 阈值过滤 |
+```mermaid
+flowchart LR
+    S1["① FETCHING_PR<br/>获取 PR 信息"] -->
+    S2["② BUILDING_CONTEXT<br/>构建上下文"] -->
+    S3["③ STATIC_SCAN<br/>15 条静态规则"] -->
+    S4["④ AI_PR_SUMMARY<br/>LLM PR 摘要"] -->
+    S5["⑤ AI_FILE_REVIEW<br/>逐文件审查"] -->
+    S6["⑥ AI_CROSS_FILE<br/>跨文件分析"] -->
+    S7["⑦ MERGING_RESULTS<br/>去重 + 评分 + 过滤"]
+
+    style S1 fill:#e3f2fd,stroke:#1565c0,stroke-width:2px,color:#0d47a1
+    style S2 fill:#e3f2fd,stroke:#1565c0,stroke-width:2px,color:#0d47a1
+    style S3 fill:#fff3e0,stroke:#ef6c00,stroke-width:2px,color:#e65100
+    style S4 fill:#e8f5e9,stroke:#2e7d32,stroke-width:2px,color:#1b5e20
+    style S5 fill:#e8f5e9,stroke:#2e7d32,stroke-width:2px,color:#1b5e20
+    style S6 fill:#e8f5e9,stroke:#2e7d32,stroke-width:2px,color:#1b5e20
+    style S7 fill:#fce4ec,stroke:#c62828,stroke-width:2px,color:#b71c1c
+```
+
+| # | 阶段 | 说明 |
+|---|------|------|
+| ① | FETCHING_PR | 解析 PR 地址，通过 GitHub API 获取元数据和 diff |
+| ② | BUILDING_CONTEXT | 识别关联文件，构建多层上下文 |
+| ③ | STATIC_SCAN | 对 patch 新增行执行 15 条确定性规则 |
+| ④ | AI_PR_SUMMARY | LLM 生成 PR 级摘要 |
+| ⑤ | AI_FILE_REVIEW | 按风险分数对每个文件进行深度/普通分析 |
+| ⑥ | AI_CROSS_FILE | 跨文件一致性检查（≥2 个文件） |
+| ⑦ | MERGING_RESULTS | 签名去重 + 置信度评分 + 阈值过滤 |
 
 ---
 
