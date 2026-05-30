@@ -75,6 +75,7 @@ def get_report(task_id: int, db: Session = Depends(get_db)):
             reason=f.reason,
             suggestion=f.suggestion,
             confidence=float(f.confidence) if f.confidence else None,
+            evidence_json=f.evidence_json,
         ) for f in findings if f.title],
     )
 
@@ -129,6 +130,7 @@ def get_file_findings(task_id: int, file_id: int, db: Session = Depends(get_db))
             "reason": f.reason,
             "suggestion": f.suggestion,
             "confidence": float(f.confidence) if f.confidence else None,
+            "evidence_json": f.evidence_json,
             "status": f.status,
         }
         for f in findings

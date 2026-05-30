@@ -156,6 +156,7 @@ class ReviewEngine:
         self._file_map = file_map  # Store for _save_findings
 
     def _save_findings(self, task_id: int, findings: List[dict], db: Session):
+        import json
         file_map = getattr(self, '_file_map', {})
         for f in findings:
             confidence = f.get("confidence", 0)
@@ -165,17 +166,56 @@ class ReviewEngine:
                 except (ValueError, TypeError):
                     confidence = 0.0
             file_path = f.get("file", "")
+            source = f.get("source", "ai_file")
+
+            # Build evidence chain
+            evidence = []
+            evidence.append({
+                "type": "changed_file",
+                "label": "Changed File",
+                "content": file_path,
+            })
+            if f.get("line"):
+                evidence.append({
+                    "type": "line_number",
+                    "label": "Line",
+                    "content": str(f.get("line")),
+                })
+            finding_type = f.get("type", "") or source
+            if finding_type and finding_type.startswith("S"):
+                evidence.append({
+                    "type": "rule_match",
+                    "label": "Static Rule",
+                    "content": f"{finding_type}: {f.get('title', '')}",
+                })
+            else:
+                evidence.append({
+                    "type": "ai_source",
+                    "label": "AI Source",
+                    "content": source,
+                })
+            severity = f.get("severity", "low")
+            conf_pct = int(confidence * 100) if confidence else 0
+            conf_label = "visible + GitHub-ready" if confidence >= 0.8 else \
+                         "visible in report" if confidence >= 0.6 else "filtered by default"
+            evidence.append({
+                "type": "confidence",
+                "label": "Confidence Gate",
+                "content": f"{conf_pct}% ({severity}) — {conf_label}",
+            })
+
             db_finding = PRReviewFinding(
                 task_id=task_id,
                 file_id=file_map.get(file_path),
                 file_path=file_path,
                 line_number=f.get("line"),
-                finding_type=f.get("type", "") or f.get("source", ""),
-                severity=f.get("severity", "low"),
+                finding_type=finding_type,
+                severity=severity,
                 title=f.get("title", ""),
                 reason=f.get("reason", ""),
                 suggestion=f.get("suggestion", ""),
                 confidence=confidence,
+                evidence_json=json.dumps(evidence, ensure_ascii=False),
             )
             db.add(db_finding)
         db.commit()

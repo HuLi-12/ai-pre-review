@@ -166,7 +166,22 @@ class ReportGenerator:
                 line = fd.get("line", "")
                 title = fd.get("title", "")
                 loc = f"`{file_path}`" + (f":{line}" if line else "")
-                parts.append(f"{i}. {loc} — {title}")
+                rule = fd.get("type", "")
+                confidence = fd.get("confidence", 0)
+                rule_tag = f" [{rule}]" if rule else ""
+                conf_tag = f" (conf: {int(float(confidence)*100)}%)" if confidence else ""
+                parts.append(f"{i}. {loc} — {title}{rule_tag}{conf_tag}")
+            parts.append("")
+
+        # Evidence summary
+        if high_confidence:
+            parts.append("### Evidence Summary\n")
+            for fd in high_confidence[:5]:
+                file_path = fd.get("file", "")
+                title = fd.get("title", "")
+                reason = fd.get("reason", "")
+                if reason:
+                    parts.append(f"- **{title}** (`{file_path}`): {reason[:120]}")
             parts.append("")
 
         # Medium suggestions (summarized)
