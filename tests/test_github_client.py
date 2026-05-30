@@ -29,3 +29,46 @@ def test_parse_pr_url_invalid():
         GitHubClient.parse_pr_url("not a url")
     with pytest.raises(ValueError):
         GitHubClient.parse_pr_url("")
+
+
+def test_get_changed_files_uses_authenticated_contents_api_with_head_sha(monkeypatch):
+    calls = []
+
+    class FakeResponse:
+        def __init__(self, payload, status_code=200):
+            self._payload = payload
+            self.status_code = status_code
+            self.text = "raw fallback"
+
+        def raise_for_status(self):
+            pass
+
+        def json(self):
+            return self._payload
+
+    def fake_get(url, headers=None, timeout=30):
+        calls.append({"url": url, "headers": headers or {}, "timeout": timeout})
+        if url.endswith("/pulls/3/files"):
+            return FakeResponse([
+                {
+                    "filename": "app/service.py",
+                    "status": "modified",
+                    "additions": 2,
+                    "deletions": 1,
+                    "patch": "@@ -1,1 +1,2 @@\n+print('x')",
+                    "raw_url": "https://raw.githubusercontent.com/acme/repo/old/app/service.py",
+                }
+            ])
+        if "/contents/app/service.py?ref=abc123" in url:
+            return FakeResponse({"content": "ZnJvbSBoZWFkIHNoYQo="})
+        raise AssertionError(f"unexpected URL: {url}")
+
+    monkeypatch.setattr("app.github_client.httpx.get", fake_get)
+
+    client = GitHubClient(token="token-123")
+    files = client.get_changed_files("acme", "repo", 3, head_sha="abc123")
+
+    assert files[0].raw_content == "from head sha\n"
+    contents_call = next(c for c in calls if "/contents/app/service.py?ref=abc123" in c["url"])
+    assert contents_call["headers"]["Authorization"] == "Bearer token-123"
+    assert all("raw.githubusercontent.com" not in c["url"] for c in calls)

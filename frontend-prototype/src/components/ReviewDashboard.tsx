@@ -17,6 +17,15 @@ const severityConfig = {
   low: { color: "text-gray-400", bg: "bg-gray-500/10", border: "border-gray-500/20", badge: "bg-gray-500/10 text-gray-400" },
 }
 
+const ruleIcons: Record<string, React.ElementType> = {
+  S001: Bug,
+  S002: Terminal,
+  S008: Key,
+  S011: Database,
+  S013: Shuffle,
+  S014: AlertTriangle,
+}
+
 function SeverityBadge({ severity }: { severity: string }) {
   const cfg = severityConfig[severity as keyof typeof severityConfig] || severityConfig.low
   return (
@@ -176,10 +185,7 @@ function EvidenceChain({ evidence }: { evidence: Finding["evidence"] }) {
 function FindingCard({ finding }: { finding: Finding }) {
   const severity = finding.severity
   const cfg = severityConfig[severity as keyof typeof severityConfig]
-  const typeIcon = finding.finding_type?.startsWith("S")
-    ? { S001: Bug, S002: Terminal, S008: Key, S011: Database, S013: Shuffle, S014: AlertTriangle }
-    : { default: Bug }
-  const Icon = (typeIcon as any)[finding.finding_type] || Bug
+  const Icon = ruleIcons[finding.finding_type] || Bug
 
   return (
     <div className={`rounded-lg border ${cfg.border} ${cfg.bg} p-4`}>

@@ -69,6 +69,34 @@ def test_s010_broad_exception_detected():
     assert len(s010) >= 1
 
 
+def test_s008_fastapi_endpoint_detected():
+    scanner = StaticScanner()
+    patch = """@@ -1,3 +1,6 @@
+ router = APIRouter()
++@router.post("/admin/delete")
++def delete_user(user_id: int):
++    return service.delete_user(user_id)
+"""
+    findings = scanner.scan_patch("routes.py", patch)
+    s008 = [f for f in findings if f.rule_id == "S008"]
+    assert len(s008) == 1
+    assert s008[0].severity == "high"
+
+
+def test_s009_fastapi_endpoint_without_validation_detected():
+    scanner = StaticScanner()
+    patch = """@@ -1,3 +1,6 @@
+ router = APIRouter()
++@app.post("/users")
++def create_user(name: str):
++    return service.create_user(name)
+"""
+    findings = scanner.scan_patch("main.py", patch)
+    s009 = [f for f in findings if f.rule_id == "S009"]
+    assert len(s009) == 1
+    assert s009[0].severity == "medium"
+
+
 def test_unchanged_old_code_not_scanned():
     """Patch-only scanning MUST NOT flag issues in unchanged lines."""
     scanner = StaticScanner()

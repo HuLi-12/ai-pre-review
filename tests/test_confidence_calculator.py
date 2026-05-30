@@ -78,3 +78,18 @@ def test_static_rule_low():
     conf = calculate_confidence({"type": "S002", "source": "static_rule", "severity": "low"})
     assert conf < 0.60
     assert should_show_in_report(conf) is False
+
+
+def test_s015_test_missing_is_visible_project_signal():
+    """S015 is project-level test coverage evidence and should not be hidden by default."""
+    conf = calculate_confidence({
+        "type": "S015",
+        "source": "static_rule",
+        "severity": "medium",
+        "file": "(project-wide)",
+        "line": 0,
+        "reason": "Core source files changed but no test files were updated.",
+        "suggestion": "Add focused tests for the changed source logic.",
+    })
+    assert conf >= 0.60
+    assert should_show_in_report(conf) is True

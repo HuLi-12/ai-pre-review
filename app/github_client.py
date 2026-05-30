@@ -1,7 +1,7 @@
 import re
 import base64
 from typing import Optional, List, Dict, Any
-from urllib.parse import urlparse
+from urllib.parse import quote
 
 import httpx
 from config import settings
@@ -85,7 +85,13 @@ class GitHubClient:
             updated_at=data.get("updated_at", ""),
         )
 
-    def get_changed_files(self, owner: str, repo: str, number: int) -> List[ChangedFile]:
+    def get_changed_files(
+        self,
+        owner: str,
+        repo: str,
+        number: int,
+        head_sha: Optional[str] = None,
+    ) -> List[ChangedFile]:
         """Fetch changed files with patch diff"""
         url = f"{self.base_url}/repos/{owner}/{repo}/pulls/{number}/files"
         resp = httpx.get(url, headers=self._get_headers(accept="application/vnd.github.v3+json"), timeout=60)
@@ -102,14 +108,13 @@ class GitHubClient:
             elif f.get("status") == "renamed":
                 change_type = "renamed"
 
-            raw_content = ""
-            if f.get("raw_url"):
-                try:
-                    raw_resp = httpx.get(f["raw_url"], timeout=30)
-                    if raw_resp.status_code == 200:
-                        raw_content = raw_resp.text
-                except Exception:
-                    pass
+            raw_content = self._get_changed_file_content(
+                owner,
+                repo,
+                f.get("filename", ""),
+                head_sha,
+                raw_url=f.get("raw_url"),
+            )
 
             changed_files.append(ChangedFile(
                 file_path=f.get("filename", ""),
@@ -122,9 +127,34 @@ class GitHubClient:
 
         return changed_files
 
+    def _get_changed_file_content(
+        self,
+        owner: str,
+        repo: str,
+        path: str,
+        head_sha: Optional[str],
+        raw_url: Optional[str] = None,
+    ) -> str:
+        """Fetch file content from the exact PR head when possible."""
+        if head_sha and path:
+            content = self.get_file_content(owner, repo, path, ref=head_sha)
+            if content is not None:
+                return content
+
+        if raw_url:
+            try:
+                raw_resp = httpx.get(raw_url, headers=self._get_headers(), timeout=30)
+                if raw_resp.status_code == 200:
+                    return raw_resp.text
+            except Exception:
+                pass
+
+        return ""
+
     def get_file_content(self, owner: str, repo: str, path: str, ref: str = "main") -> Optional[str]:
         """Get file content from repository"""
-        url = f"{self.base_url}/repos/{owner}/{repo}/contents/{path}?ref={ref}"
+        encoded_path = quote(path, safe="/")
+        url = f"{self.base_url}/repos/{owner}/{repo}/contents/{encoded_path}?ref={quote(ref, safe='')}"
         try:
             resp = httpx.get(url, headers=self._get_headers(), timeout=30)
             resp.raise_for_status()
