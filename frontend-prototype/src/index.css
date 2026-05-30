@@ -1,0 +1,80 @@
+@import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700&display=swap');
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    --cockpit-bg: #0B1020;
+    --cockpit-card: #131A2E;
+    --cockpit-border: #1E2A45;
+    --cockpit-primary: #38BDF8;
+    --cockpit-text: #E2E8F0;
+    --cockpit-muted: #64748B;
+    --cockpit-critical: #EF4444;
+    --cockpit-high: #F59E0B;
+    --cockpit-medium: #3B82F6;
+    --cockpit-low: #6B7280;
+  }
+
+  body {
+    @apply m-0 min-h-screen bg-[#0B1020] text-[#E2E8F0] font-sans antialiased;
+  }
+
+  * {
+    scrollbar-width: thin;
+    scrollbar-color: #1E2A45 transparent;
+  }
+}
+
+@layer components {
+  .glass-card {
+    @apply rounded-xl border border-[#1E2A45] bg-[#131A2E] backdrop-blur-sm;
+  }
+
+  .glass-nav {
+    @apply border-b border-[#1E2A45] bg-[#0B1020]/80 backdrop-blur-md;
+  }
+
+  .badge-critical {
+    @apply inline-flex items-center px-2 py-0.5 text-xs font-medium rounded
+      bg-red-500/10 text-red-400 border border-red-500/20;
+  }
+
+  .badge-high {
+    @apply inline-flex items-center px-2 py-0.5 text-xs font-medium rounded
+      bg-amber-500/10 text-amber-400 border border-amber-500/20;
+  }
+
+  .badge-medium {
+    @apply inline-flex items-center px-2 py-0.5 text-xs font-medium rounded
+      bg-blue-500/10 text-blue-400 border border-blue-500/20;
+  }
+
+  .badge-low {
+    @apply inline-flex items-center px-2 py-0.5 text-xs font-medium rounded
+      bg-gray-500/10 text-gray-400 border border-gray-500/20;
+  }
+
+  .risk-bar {
+    @apply h-2 rounded-full bg-[#1E2A45] overflow-hidden;
+  }
+
+  .risk-bar-fill {
+    @apply h-full rounded-full transition-all duration-500;
+  }
+
+  .pipeline-step {
+    @apply flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs font-medium
+      border border-[#1E2A45] bg-[#131A2E] text-[#64748B];
+  }
+
+  .pipeline-step.active {
+    @apply border-[#38BDF8]/40 bg-[#38BDF8]/5 text-[#38BDF8];
+  }
+
+  .pipeline-arrow {
+    @apply text-[#1E2A45] text-lg mx-1;
+  }
+}
