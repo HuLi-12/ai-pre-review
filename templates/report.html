@@ -1,27 +1,7 @@
 {% extends "base.html" %}
 {% block title %}评审报告 - {{ task.repo_owner }}/{{ task.repo_name }} #{{ task.pr_number }}{% endblock %}
 
-{% block extra_head %}
-<style>
-.risk-bar { height: 6px; border-radius: 3px; background: rgba(148,163,184,0.15); overflow: hidden; }
-.risk-bar-fill { height: 100%; border-radius: 3px; transition: width 0.6s ease; }
-.metric-card { transition: transform 0.15s ease; }
-.metric-card:hover { transform: translateY(-2px); }
-.pipeline-step { position: relative; }
-.pipeline-step:not(:last-child)::after {
-    content: '';
-    position: absolute; right: -12px; top: 50%;
-    width: 16px; height: 2px;
-    background: var(--cockpit-border, rgba(148,163,184,0.3));
-    transform: translateY(-50%);
-}
-.finding-card { transition: border-color 0.2s; }
-.finding-card:hover { border-color: rgba(148,163,184,0.4) !important; }
-.file-risk-item { transition: background 0.15s; cursor: pointer; }
-.file-risk-item:hover { background: rgba(56,189,248,0.06); }
-.file-risk-item.active { background: rgba(56,189,248,0.1); border-color: var(--cockpit-primary, #38BDF8) !important; }
-</style>
-{% endblock %}
+{% block extra_head %}{% endblock %}
 
 {% block content %}
 <!-- Breadcrumb -->
@@ -29,9 +9,9 @@
     <div class="col">
         <nav aria-label="breadcrumb">
             <ol class="breadcrumb" style="background: transparent; padding: 0;">
-                <li class="breadcrumb-item"><a href="/" style="color: var(--cockpit-muted, #64748B);">首页</a></li>
-                <li class="breadcrumb-item"><a href="/tasks/{{ task.id }}" style="color: var(--cockpit-muted, #64748B);">任务 #{{ task.id }}</a></li>
-                <li class="breadcrumb-item active" style="color: var(--cockpit-text, #E5E7EB);">评审报告</li>
+                <li class="breadcrumb-item"><a href="/" class="text-cockpit-muted">首页</a></li>
+                <li class="breadcrumb-item"><a href="/tasks/{{ task.id }}" class="text-cockpit-muted">任务 #{{ task.id }}</a></li>
+                <li class="breadcrumb-item active text-cockpit-text">评审报告</li>
             </ol>
         </nav>
     </div>
@@ -43,7 +23,7 @@
         <div class="cockpit-card p-3 metric-card" style="border-color: {% if report.risk_level == 'HIGH' or report.risk_level == 'CRITICAL' %}rgba(239,68,68,0.3){% elif report.risk_level == 'MEDIUM' %}rgba(245,158,11,0.3){% else %}rgba(34,197,94,0.3){% endif %};">
             <div class="d-flex justify-content-between align-items-start">
                 <div>
-                    <div class="small text-uppercase mb-1" style="color: var(--cockpit-muted, #64748B); letter-spacing: 0.5px;">Risk Level</div>
+                    <div class="stat-label mb-1">Risk Level</div>
                     <div class="fs-3 fw-bold" style="color: {% if report.risk_level == 'HIGH' or report.risk_level == 'CRITICAL' %}var(--cockpit-danger){% elif report.risk_level == 'MEDIUM' %}var(--cockpit-warning){% else %}var(--cockpit-success){% endif %};">{{ report.risk_level }}</div>
                 </div>
                 <span class="badge {% if report.risk_level == 'HIGH' or report.risk_level == 'CRITICAL' %}bg-danger{% elif report.risk_level == 'MEDIUM' %}bg-warning text-dark{% else %}bg-success{% endif %} rounded-pill">{{ report.risk_level }}</span>
@@ -52,7 +32,7 @@
     </div>
     <div class="col-md-3">
         <div class="cockpit-card p-3 metric-card" style="border-color: rgba(56,189,248,0.2);">
-            <div class="small text-uppercase mb-1" style="color: var(--cockpit-muted, #64748B); letter-spacing: 0.5px;">Review Confidence</div>
+            <div class="stat-label mb-1">Review Confidence</div>
             <div class="fs-3 fw-bold" style="color: var(--cockpit-primary, #38BDF8);">
                 {% set avg_conf = findings|map(attribute='confidence')|select('!=', none)|list %}
                 {% if avg_conf %}
@@ -64,7 +44,7 @@
     </div>
     <div class="col-md-3">
         <div class="cockpit-card p-3 metric-card" style="border-color: rgba(245,158,11,0.2);">
-            <div class="small text-uppercase mb-1" style="color: var(--cockpit-muted, #64748B); letter-spacing: 0.5px;">Findings</div>
+            <div class="stat-label mb-1">Findings</div>
             <div class="d-flex align-items-baseline gap-2">
                 <div class="fs-3 fw-bold" style="color: var(--cockpit-warning, #F59E0B);">{{ findings|length }}</div>
                 <div style="font-size: 0.75rem; color: var(--cockpit-muted, #64748B);">
@@ -78,7 +58,7 @@
     </div>
     <div class="col-md-3">
         <div class="cockpit-card p-3 metric-card" style="border-color: {% if report.merge_suggestion and '修复' in report.merge_suggestion %}rgba(239,68,68,0.3){% else %}rgba(34,197,94,0.3){% endif %};">
-            <div class="small text-uppercase mb-1" style="color: var(--cockpit-muted, #64748B); letter-spacing: 0.5px;">Merge Decision</div>
+            <div class="stat-label mb-1">Merge Decision</div>
             <div class="d-flex align-items-center gap-2">
                 <i class="bi {% if report.merge_suggestion and '修复' in report.merge_suggestion %}bi-exclamation-triangle" style="color: var(--cockpit-danger){% else %}bi-check-circle" style="color: var(--cockpit-success){% endif %};"></i>
                 <span class="fw-semibold" style="font-size: 0.9rem;">{{ report.merge_suggestion or '审核后合并' }}</span>
@@ -91,8 +71,8 @@
     <!-- Left: File Risk Map -->
     <div class="col-lg-3 mb-3">
         <div class="cockpit-card">
-            <div class="p-3" style="border-bottom: 1px solid var(--cockpit-border, rgba(148,163,184,0.2));">
-                <h6 class="mb-0" style="font-size: 0.85rem;"><i class="bi bi-diagram-3 me-1" style="color: var(--cockpit-primary);"></i> File Risk Map</h6>
+            <div class="p-3 section-header">
+                <h6 class="mb-0" style="font-size: 0.85rem;"><i class="bi bi-diagram-3 me-1 text-cockpit-primary"></i> File Risk Map</h6>
             </div>
             <div class="p-0" style="max-height: 500px; overflow-y: auto;">
                 {% for file in files %}
@@ -139,8 +119,8 @@
 
         <!-- Overview summary -->
         <div class="cockpit-card mt-3">
-            <div class="p-3" style="border-bottom: 1px solid var(--cockpit-border, rgba(148,163,184,0.2));">
-                <h6 class="mb-0" style="font-size: 0.85rem;"><i class="bi bi-pie-chart me-1" style="color: var(--cockpit-primary);"></i> Overview</h6>
+            <div class="p-3 section-header">
+                <h6 class="mb-0" style="font-size: 0.85rem;"><i class="bi bi-pie-chart me-1 text-cockpit-primary"></i> Overview</h6>
             </div>
             <div class="p-3">
                 <div class="d-flex justify-content-between mb-2" style="font-size: 0.85rem;">

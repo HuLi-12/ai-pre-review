@@ -1,0 +1,279 @@
+/* ========================================================================
+   AI Review Cockpit — Design System
+   ======================================================================== */
+
+/* --- Design Tokens (Root Variables) -------------------------------- */
+:root {
+  --cockpit-bg: #0B1020;
+  --cockpit-card: rgba(255, 255, 255, 0.06);
+  --cockpit-border: rgba(148, 163, 184, 0.2);
+  --cocktip-border-hover: rgba(148, 163, 184, 0.35);
+  --cockpit-primary: #38BDF8;
+  --cockpit-danger: #EF4444;
+  --cockpit-warning: #F59E0B;
+  --cockpit-success: #22C55E;
+  --cockpit-text: #E5E7EB;
+  --cockpit-muted: #64748B;
+  --cockpit-accent-purple: #818CF8;
+}
+
+/* --- Base ---------------------------------------------------------- */
+body {
+  background: var(--cockpit-bg);
+  color: var(--cockpit-text);
+  font-family: -apple-system, 'Segoe UI', system-ui, sans-serif;
+}
+
+.navbar {
+  background: rgba(11, 16, 32, 0.95) !important;
+  backdrop-filter: blur(12px);
+  border-bottom: 1px solid var(--cockpit-border);
+}
+.navbar-brand {
+  font-weight: 700;
+  letter-spacing: -0.5px;
+  background: linear-gradient(135deg, #38BDF8, #818CF8);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+}
+.navbar .nav-link {
+  color: var(--cockpit-muted) !important;
+  font-size: 0.875rem;
+  transition: color 0.2s;
+}
+.navbar .nav-link:hover {
+  color: var(--cockpit-text) !important;
+}
+
+/* --- Scrollbar ----------------------------------------------------- */
+::-webkit-scrollbar { width: 6px; height: 6px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: rgba(148, 163, 184, 0.3); border-radius: 3px; }
+::-webkit-scrollbar-thumb:hover { background: rgba(148, 163, 184, 0.5); }
+
+/* --- Cards --------------------------------------------------------- */
+.cockpit-card {
+  background: var(--cockpit-card);
+  border: 1px solid var(--cockpit-border);
+  border-radius: 12px;
+  backdrop-filter: blur(8px);
+}
+.cockpit-card-hoverable:hover {
+  border-color: var(--cockpit-border-hover);
+}
+
+/* --- Severity Colors ----------------------------------------------- */
+.severity-critical { color: var(--cockpit-danger); }
+.severity-high { color: var(--cockpit-warning); }
+.severity-medium { color: #EAB308; }
+.severity-low { color: var(--cockpit-muted); }
+
+.badge-critical { background: var(--cockpit-danger); }
+.badge-high { background: var(--cockpit-warning); color: #000; }
+.badge-medium { background: #EAB308; color: #000; }
+.badge-low { background: var(--cockpit-muted); }
+
+/* --- Findings ------------------------------------------------------ */
+.finding-item { border-left: 3px solid transparent; }
+.finding-item.critical { border-left-color: var(--cockpit-danger); }
+.finding-item.high { border-left-color: var(--cockpit-warning); }
+.finding-item.medium { border-left-color: #EAB308; }
+.finding-item.low { border-left-color: var(--cockpit-muted); }
+
+.finding-card {
+  transition: border-color 0.2s;
+}
+.finding-card:hover {
+  border-color: rgba(148, 163, 184, 0.4) !important;
+}
+
+/* --- Code Blocks --------------------------------------------------- */
+.code-block {
+  background: #0D1117;
+  color: #E5E7EB;
+  border-radius: 8px;
+  padding: 14px;
+  font-size: 13px;
+  overflow-x: auto;
+  font-family: 'JetBrains Mono', 'Fira Code', monospace;
+  border: 1px solid rgba(148, 163, 184, 0.15);
+}
+.diff-add { background: rgba(34, 197, 94, 0.15); }
+.diff-del { background: rgba(239, 68, 68, 0.15); }
+
+/* --- Glows --------------------------------------------------------- */
+.glow-primary { box-shadow: 0 0 30px rgba(56, 189, 248, 0.1); }
+.glow-danger { box-shadow: 0 0 30px rgba(239, 68, 68, 0.1); }
+
+/* --- Text & Border Utilities --------------------------------------- */
+.text-gradient {
+  background: linear-gradient(135deg, #38BDF8, #818CF8);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+}
+.border-gradient {
+  border-image: linear-gradient(135deg, #38BDF8, #818CF8) 1;
+}
+
+/* --- Section Header (with bottom border) -------------------------- */
+.section-header {
+  border-bottom: 1px solid var(--cockpit-border);
+}
+
+/* --- Metric Tiles (colored inner boxes with rgba background) ------ */
+.metric-tile {
+  padding: 0.75rem;
+  border-radius: 0.375rem;
+}
+.metric-tile-primary {
+  background: rgba(56, 189, 248, 0.08);
+  border: 1px solid rgba(56, 189, 248, 0.16);
+}
+.metric-tile-success {
+  background: rgba(34, 197, 94, 0.08);
+  border: 1px solid rgba(34, 197, 94, 0.16);
+}
+.metric-tile-danger {
+  background: rgba(239, 68, 68, 0.08);
+  border: 1px solid rgba(239, 68, 68, 0.16);
+}
+.metric-tile-warning {
+  background: rgba(245, 158, 11, 0.08);
+  border: 1px solid rgba(245, 158, 11, 0.16);
+}
+.metric-tile-info {
+  background: rgba(99, 102, 241, 0.08);
+  border: 1px solid rgba(99, 102, 241, 0.16);
+}
+
+/* --- Stat Label (uppercase muted label used in metrics) ------------ */
+.stat-label {
+  font-size: 0.75rem;
+  text-transform: uppercase;
+  color: var(--cockpit-muted);
+  letter-spacing: 0.5px;
+}
+.stat-label-sm {
+  font-size: 0.65rem;
+  text-transform: uppercase;
+  color: var(--cockpit-muted);
+  letter-spacing: 1px;
+}
+
+/* --- Report-specific: Risk Bar ------------------------------------ */
+.risk-bar {
+  height: 6px;
+  border-radius: 3px;
+  background: rgba(148, 163, 184, 0.15);
+  overflow: hidden;
+}
+.risk-bar-fill {
+  height: 100%;
+  border-radius: 3px;
+  transition: width 0.6s ease;
+}
+
+/* --- Report-specific: Metric Card --------------------------------- */
+.metric-card {
+  transition: transform 0.15s ease;
+}
+.metric-card:hover {
+  transform: translateY(-2px);
+}
+
+/* --- Report-specific: Pipeline Step ------------------------------- */
+.pipeline-step {
+  position: relative;
+}
+.pipeline-step:not(:last-child)::after {
+  content: '';
+  position: absolute;
+  right: -12px;
+  top: 50%;
+  width: 16px;
+  height: 2px;
+  background: var(--cockpit-border);
+  transform: translateY(-50%);
+}
+
+/* --- Report-specific: File Risk Item ------------------------------ */
+.file-risk-item {
+  transition: background 0.15s;
+  cursor: pointer;
+}
+.file-risk-item:hover {
+  background: rgba(56, 189, 248, 0.06);
+}
+.file-risk-item.active {
+  background: rgba(56, 189, 248, 0.1);
+  border-color: var(--cockpit-primary) !important;
+}
+
+/* --- Report-specific: File Path Label in finding card ------------- */
+.file-path-label {
+  color: var(--cockpit-primary) !important;
+}
+
+/* --- Feature icon circle ------------------------------------------- */
+.icon-circle {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  border-radius: 0.375rem;
+}
+.icon-circle-sm {
+  width: 28px;
+  height: 28px;
+}
+.icon-circle-rounded {
+  width: 48px;
+  height: 48px;
+  border-radius: 50%;
+}
+
+/* --- Evidence chain ------------------------------------------------- */
+.evidence-chain {
+  background: rgba(148, 163, 184, 0.04);
+  border: 1px solid rgba(148, 163, 184, 0.1);
+  padding: 0.5rem;
+  border-radius: 0.375rem;
+}
+.evidence-chain .chain-item {
+  font-size: 0.7rem;
+  padding: 2px 8px;
+  border-right: 1px solid rgba(148, 163, 184, 0.15);
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+}
+.evidence-chain .chain-item:last-child {
+  border-right: none;
+}
+
+/* --- KBD style for keyboard shortcut hints ------------------------- */
+kbd.cockpit-kbd {
+  background: rgba(148, 163, 184, 0.15);
+  color: var(--cockpit-muted);
+  border: 1px solid var(--cockpit-border);
+  padding: 1px 4px;
+  border-radius: 3px;
+  font-size: 0.65rem;
+}
+
+/* --- Cockpit utility classes --------------------------------------- */
+.text-cockpit-muted { color: var(--cockpit-muted); }
+.text-cockpit-primary { color: var(--cockpit-primary); }
+.text-cockpit-danger { color: var(--cockpit-danger); }
+.text-cockpit-warning { color: var(--cockpit-warning); }
+.text-cockpit-success { color: var(--cockpit-success); }
+.text-cockpit-text { color: var(--cockpit-text); }
+.border-cockpit { border-color: var(--cockpit-border); }
+.bg-cockpit-subtle { background: rgba(148, 163, 184, 0.06); }
+
+/* --- Empty state --------------------------------------------------- */
+.empty-state-icon {
+  font-size: 2.5rem;
+  color: var(--cockpit-success);
+}
