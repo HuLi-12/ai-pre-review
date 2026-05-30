@@ -1,198 +1,197 @@
-# AI Review Cockpit — Final Project Review
+# AI Review Cockpit — 最终项目评审
 
-## 1. Project Overview
+## 1. 项目概述
 
-AI Review Cockpit is a low-noise, explainable, decision-oriented AI code review system for GitHub Pull Requests.
+AI Review Cockpit 是一个低噪音、可解释、面向决策的 GitHub Pull Request AI 代码审查系统。
 
-It is not a simple "diff to LLM" tool. Instead, it:
+它不是简单的"diff 到 LLM"工具，而是：
 
-1. Parses changed lines from the unified diff (ignoring unchanged code)
-2. Scores each file by risk to determine analysis depth
-3. Runs 15 static rules on new code only
-4. Performs AI file-level and cross-file analysis
-5. Merges findings with signature-based dedup
-6. Calculates confidence scores with agreement bonuses
-7. Generates a **Review Decision Cockpit** report
-8. Optionally posts high-confidence findings to the GitHub PR conversation
+1. 从 unified diff 中解析变更行（忽略未变更代码）
+2. 对每个文件进行风险评分，确定分析深度
+3. 仅在新代码上运行 15 条静态规则
+4. 执行 AI 文件级和跨文件分析
+5. 基于签名去重合并发现
+6. 计算置信度分数（含同意加成）
+7. 生成**评审决策驾驶舱**报告
+8. 可选地将高置信度发现发布到 GitHub PR 对话
 
-**Target users:** PR authors, reviewers, and team leads who need to make fast, informed merge decisions.
+**目标用户：** PR 作者、审查者和团队负责人，需要快速做出有依据的合并决策。
 
 ---
 
-## 2. Complete Workflow
+## 2. 完整工作流
 
 ```
 ┌──────────────────────────────────────────────────────────────┐
-│  Input                                                        │
-│  GitHub PR URL → GitHubClient fetches diff + file list        │
+│  输入                                                            │
+│  GitHub PR 地址 → GitHubClient 获取 diff + 文件列表              │
 └──────────────────────────────┬───────────────────────────────┘
                                ↓
 ┌──────────────────────────────────────────────────────────────┐
-│  Stage 1: FETCHING_PR                                        │
-│  Parse URL, fetch PR metadata, changed files, patches         │
+│  阶段 1: FETCHING_PR                                          │
+│  解析地址，获取 PR 元数据、变更文件、patch                       │
 └──────────────────────────────┬───────────────────────────────┘
                                ↓
 ┌──────────────────────────────────────────────────────────────┐
-│  Stage 2: BUILDING_CONTEXT                                   │
-│  Identify related files (controller→service→mapper)          │
-│  Fetch context for deep-analysis files                        │
+│  阶段 2: BUILDING_CONTEXT                                     │
+│  识别关联文件（controller→service→mapper）                    │
+│  获取深度分析文件的上下文                                       │
 └──────────────────────────────┬───────────────────────────────┘
                                ↓
 ┌──────────────────────────────────────────────────────────────┐
-│  Stage 3: STATIC_SCAN                                        │
-│  15 rules on added lines only (S001-S015)                    │
-│  No flagging of pre-existing issues                          │
+│  阶段 3: STATIC_SCAN                                          │
+│  对新增行执行 15 条规则（S001–S015）                            │
+│  不标记已有问题                                                │
 └──────────────────────────────┬───────────────────────────────┘
                                ↓
 ┌──────────────────────────────────────────────────────────────┐
-│  Stage 4: AI_PR_SUMMARY                                      │
-│  LLM generates one-line summary, module changes,              │
-│  business impact                                              │
+│  阶段 4: AI_PR_SUMMARY                                        │
+│  LLM 生成一行摘要、模块变更、业务影响                            │
 └──────────────────────────────┬───────────────────────────────┘
                                ↓
 ┌──────────────────────────────────────────────────────────────┐
-│  Stage 5: AI_FILE_REVIEW                                     │
-│  Files sorted by risk score (highest first).                  │
-│  High-risk → deep review (full content + related context)     │
-│  Normal-risk → patch-only review                              │
-│  Low-risk → skip                                               │
+│  阶段 5: AI_FILE_REVIEW                                       │
+│  文件按风险分数排序（最高优先）                                  │
+│  高风险 → 深度审查（完整内容 + 关联上下文）                      │
+│  普通风险 → 仅 patch 审查                                      │
+│  低风险 → 跳过                                                 │
 └──────────────────────────────┬───────────────────────────────┘
                                ↓
 ┌──────────────────────────────────────────────────────────────┐
-│  Stage 6: AI_CROSS_FILE                                      │
-│  Cross-file consistency analysis (requires ≥2 changed files)  │
+│  阶段 6: AI_CROSS_FILE                                        │
+│  跨文件一致性分析（需要 ≥2 个变更文件）                          │
 └──────────────────────────────┬───────────────────────────────┘
                                ↓
 ┌──────────────────────────────────────────────────────────────┐
-│  Stage 7: MERGING_RESULTS                                     │
-│  Signature dedup (file + type + line bucket + title)          │
-│  Confidence calculation with agreement bonus                  │
-│  Threshold filtering: ≥0.60 visible, ≥0.80 GitHub-ready       │
+│  阶段 7: MERGING_RESULTS                                       │
+│  签名去重（文件 + 类型 + 行号桶 + 标题）                        │
+│  置信度计算（含同意加成）                                      │
+│  阈值过滤：≥0.60 可见，≥0.80 GitHub 就绪                       │
 └──────────────────────────────┬───────────────────────────────┘
                                ↓
 ┌──────────────────────────────────────────────────────────────┐
-│  Output                                                       │
-│  Cockpit Report (web) + optional GitHub PR comment            │
+│  输出                                                          │
+│  驾驶舱报告（Web）+ 可选 GitHub PR 评论                         │
 └──────────────────────────────────────────────────────────────┘
 ```
 
 ---
 
-## 3. Core Innovations
+## 3. 核心创新
 
-### Changed-Line Review
+### 变更行审查
 
-Traditional AI review tools scan the full file and flag pre-existing issues as if they were new. AI Review Cockpit only analyzes **added and modified lines** from the unified diff patch.
+传统 AI 审查工具扫描整个文件，将已有问题标记为新问题。AI Review Cockpit **只分析 unified diff patch 中的新增和修改行**。
 
 ```python
-# diff_utils.py: parse_patch() extracts only added lines
+# diff_utils.py: parse_patch() 仅提取新增行
 added_lines = [line for line in hunk_lines if line.startswith('+')]
 ```
 
-**Result:** Zero noise from legacy code. Every finding is relevant to the current PR.
+**结果：** 零遗留代码噪音。每个发现都与当前 PR 相关。
 
-### Risk-Aware Routing
+### 风险感知路由
 
-Files are scored by three factors:
-- **Path patterns**: controller/service files score higher, test/docs score lower
-- **Change size**: large additions increase risk
-- **Content keywords**: database operations, security-sensitive APIs increase risk
+文件通过三个因素评分：
+- **路径模式**：controller/service 文件分数更高，测试/文档分数更低
+- **变更大小**：大量新增增加风险
+- **内容关键词**：数据库操作、安全敏感 API 增加风险
 
-Score range: `-2` to `15`. Thresholds determine analysis depth:
-- `>= 8`: deep review (full content + related file context)
-- `>= 4`: normal review (patch only + summary)
-- `< 4`: skip (no AI analysis needed)
+评分范围：`-2` 到 `15`。阈值决定分析深度：
+- `>= 8`：深度审查（完整内容 + 关联文件上下文）
+- `>= 4`：普通审查（仅 patch + 摘要）
+- `< 4`：跳过（无需 AI 分析）
 
-**Result:** AI compute is focused on files that matter. Low-risk files (README, config) don't waste LLM context.
+**结果：** AI 算力集中在关键文件上。低风险文件（README、配置）不浪费 LLM 上下文。
 
-### Hybrid Rule + AI
+### 混合规则 + AI
 
-| Category | Rules | AI |
-|----------|-------|----|
-| Security | S005 hardcoded passwords, S014 unsafe SQL | S006 missing null check |
-| Reliability | S003 empty catch, S010 broad exception | S013 transaction risk |
-| Performance | S011 loop DB call | S012 missing pagination |
-| Quality | S001 debug print, S002 TODO/FIXME | S007 large method |
-| Coverage | S008 missing auth, S009 missing validation | S015 test gap |
+| 分类 | 规则 | AI |
+|------|------|-----|
+| 安全 | S005 硬编码密码、S014 危险 SQL | S006 空值检查缺失 |
+| 可靠性 | S003 空 catch、S010 宽泛异常 | S013 事务风险 |
+| 性能 | S011 循环内 DB 调用 | S012 分页缺失 |
+| 质量 | S001 调试输出、S002 TODO/FIXME | S007 方法过长 |
+| 覆盖 | S008 鉴权缺失、S009 参数校验缺失 | S015 测试缺失 |
 
-**When both rule and AI flag the same issue, confidence gets a +0.20 agreement bonus.**
+**当规则和 AI 标记同一问题时，置信度获得 +0.20 的同意加成。**
 
-### Confidence Gate
+### 置信度门禁
 
-Every finding has a confidence score calculated by:
-
-```
-confidence = base_score (by source) + evidence_score + agreement_bonus - uncertainty_penalty
-```
-
-Thresholds:
-| Score | Visibility | GitHub Comment |
-|-------|-----------|----------------|
-| ≥ 0.80 | Report + GitHub | Posted automatically |
-| 0.60–0.79 | Report only | Not posted |
-| < 0.60 | Hidden by default | Never posted |
-
-**Result:** Low-quality findings are suppressed by default. Only actionable findings reach reviewers.
-
-### Evidence Chain
-
-Each finding carries a structured evidence trace:
+每个发现都有置信度分数，计算公式：
 
 ```
-user_service.py:42 → S005 hardcoded_password → 85% confidence (GitHub-ready)
+置信度 = 基础分（按来源）+ 证据分 + 同意加成 - 不确定性扣减
 ```
 
-Stored as JSON in the database, displayed in the report UI, and included in GitHub PR comments.
+阈值：
+| 分数 | 可见性 | GitHub 评论 |
+|------|--------|------------|
+| ≥ 0.80 | 报告 + GitHub | 自动发布 |
+| 0.60–0.79 | 仅报告 | 不发布 |
+| < 0.60 | 默认隐藏 | 从不发布 |
 
-**Result:** Reviewers can see exactly why each finding was flagged, not just "AI says so."
+**结果：** 低质量发现被默认抑制。只有可操作的发现能到达审查者。
 
-### Review Decision Cockpit
+### 证据链
 
-The report page is designed as a **merge decision aid**, not just a finding list:
+每个发现带有结构化证据轨迹：
 
-- **Metric Cards**: Risk Level, Review Confidence, Finding Counts, Merge Decision
-- **Pipeline Bar**: Raw → Deduped → Visible → GitHub-Ready (counts from real pipeline data)
-- **File Risk Map**: Visual risk scores with click-to-filter
-- **Review Decision Card**: "Block merge" / "Fix before merge" / "Review recommended" / "Ready to merge"
-- **Evidence Chain**: Per-finding evidence trace
-- **Feedback System**: Valid / False Positive / Resolved
-- **Keyboard Shortcuts**: 1–5 filter, F next, R refresh
+```
+user_service.py:42 → S005 hardcoded_password → 85% 置信度（GitHub 就绪）
+```
 
-**Result:** The reviewer knows at a glance whether to merge, what to fix, and where to look first.
+以 JSON 形式存储在数据库中，显示在报告 UI 中，并包含在 GitHub PR 评论中。
+
+**结果：** 审查者可以准确看到每个发现被标记的原因，而非仅仅是"AI 说的"。
+
+### 评审决策驾驶舱
+
+报告页面设计为**合并决策辅助工具**，而非仅仅是发现列表：
+
+- **指标卡片**：风险等级、审查置信度、发现数量、合并决策
+- **流水线条**：原始 → 去重 → 可见 → GitHub 就绪（来自真实流水线数据）
+- **文件风险地图**：可视化风险分数，点击可过滤
+- **评审决策卡片**："阻止合并"/"先修复再合并"/"建议审查"/"可安全合并"
+- **证据链**：每个发现的证据轨迹
+- **反馈系统**：有效 / 误报 / 已解决
+- **键盘快捷键**：1–5 过滤、F 下一条、R 刷新
+
+**结果：** 审查者一目了然地知道是否合并、修复什么、优先看哪里。
 
 ---
 
-## 4. Demo Scenarios
+## 4. 演示场景
 
-| Scenario | Input | Expected Outcome |
-|----------|-------|-----------------|
-| Low Risk | README.md change only | `LOW` risk, no findings, "Ready to merge" |
-| Medium Risk | Service logic change without tests | `MEDIUM` risk, S015 flagged |
-| High Risk | Hardcoded passwords + unsafe SQL + N+1 loops | `HIGH` risk, S005/S014 visible at conf 0.85 |
-
----
-
-## 5. Engineering Quality
-
-- **Framework**: FastAPI + SQLAlchemy + Jinja2 + Bootstrap 5
-- **Static Rules**: 15 rules (S001–S015), patch-only scanning
-- **Tests**: 28 unit tests across 5 test suites
-- **CI**: GitHub Actions (Python 3.10, lint, test, import check)
-- **Data**: SQLite with 4 models (Task, ChangedFile, Finding, Feedback)
-- **Process**: 13+ PRs with staged delivery (feat, fix, docs, test, ci, prototype)
-
-### Future Direction: shadcn/ui Prototype
-
-An independent React + Tailwind + shadcn/ui prototype exists at `frontend-prototype/`, demonstrating the planned frontend modernization path with the same cockpit layout, evidence chain, and interactive filtering.
+| 场景 | 输入 | 预期结果 |
+|------|------|---------|
+| 低风险 | 仅修改 README.md | `LOW` 风险，无发现，"可安全合并" |
+| 中风险 | 服务逻辑变更但无测试 | `MEDIUM` 风险，标记 S015 |
+| 高风险 | 硬编码密码 + 危险 SQL + N+1 循环 | `HIGH` 风险，S005/S014 以 conf 0.85 可见 |
 
 ---
 
-## 6. Summary
+## 5. 工程质量
 
-AI Review Cockpit transforms AI code review from "a list of suggestions" to **a merge decision cockpit** by:
+- **框架**：FastAPI + SQLAlchemy + Jinja2 + Bootstrap 5
+- **静态规则**：15 条规则（S001–S015），仅扫描 patch
+- **测试**：5 个测试套件共 28 个单元测试
+- **CI**：GitHub Actions（Python 3.10，lint，test，import check）
+- **数据**：SQLite，4 个模型（Task、ChangedFile、Finding、Feedback）
+- **过程**：13+ 个 PR，分阶段交付（feat、fix、docs、test、ci、prototype）
 
-1. **Reducing noise** — changed-line only, confidence-gated
-2. **Adding explainability** — evidence chain for every finding
-3. **Supporting decisions** — cockpit report with clear merge recommendations
-4. **Integrating natively** — GitHub PR comments with idempotent updates
-5. **Remaining extensible** — shadcn/ui prototype for future frontend migration
+### 未来方向：shadcn/ui 原型
+
+`frontend-prototype/` 下存在一个独立的 React + Tailwind + shadcn/ui 原型，展示了计划的前端现代化路径，包含相同的驾驶舱布局、证据链和交互式过滤。
+
+---
+
+## 6. 总结
+
+AI Review Cockpit 通过以下方式将 AI 代码审查从"一系列建议"转变为**合并决策驾驶舱**：
+
+1. **降低噪音**——仅变更行、置信度门禁
+2. **增加可解释性**——每个发现的证据链
+3. **支持决策**——带有明确合并建议的驾驶舱报告
+4. **原生集成**——GitHub PR 评论的幂等更新
+5. **保持可扩展**——用于未来前端迁移的 shadcn/ui 原型

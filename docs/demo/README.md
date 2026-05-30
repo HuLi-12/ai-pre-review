@@ -1,74 +1,74 @@
-# AI Review Cockpit — End-to-End Demo Guide
+# AI Review Cockpit — 端到端操作指南
 
-This guide walks through the complete AI Review Cockpit workflow, from submitting a PR to reviewing the cockpit report and GitHub comment.
+本指南将带你完成 AI Review Cockpit 的完整工作流：从提交 PR 到查看驾驶舱报告和 GitHub 评论。
 
-## Prerequisites
+## 前置条件
 
 ```bash
-# 1. Configure environment
+# 1. 配置环境变量
 cp .env.example .env
-# Edit .env: set GITHUB_TOKEN, AI_API_KEY
+# 编辑 .env：设置 GITHUB_TOKEN、AI_API_KEY
 
-# 2. Install dependencies
+# 2. 安装依赖
 pip install -r requirements.txt
 
-# 3. Start server
+# 3. 启动服务
 python main.py
 
-# 4. Open browser
+# 4. 打开浏览器
 open http://localhost:8000
 ```
 
-## Demo Walkthrough
+## 操作步骤
 
-### Step 1: Home Page — Submit a PR
+### 步骤 1：首页 — 提交 PR
 
-Navigate to `http://localhost:8000`. The home page presents a product landing page with:
+访问 `http://localhost:8000`。首页呈现一个产品着陆页：
 
 ```
 ┌──────────────────────────────────────────────────────────────┐
 │  [AI Review Cockpit]                                         │
 │                                                              │
-│  Evidence-driven PR Review                                   │
+│  基于证据的 PR 审查                                           │
 │                                                              │
 │  ┌──────────────────────────┐  ┌────────────┐               │
-│  │ GitHub PR URL            │  │ Risk Level  │ HIGH          │
-│  │ [input________________]  │  │ Findings    │ 6             │
-│  │                          │  │ Noise Filter│ 67%           │
-│  │ ☐ Auto-comment to GitHub │  │ GitHub Ready│ 2             │
-│  │ [Start Review]           │  └────────────┘               │
+│  │ GitHub PR 地址            │  │ 风险等级    │ HIGH          │
+│  │ [输入________________]    │  │ 发现数量    │ 6             │
+│  │                          │  │ 噪音过滤    │ 67%           │
+│  │ ☐ 自动评论到 GitHub       │  │ GitHub 就绪│ 2             │
+│  │ [开始审查]                │  └────────────┘               │
 │  └──────────────────────────┘                               │
 │                                                              │
-│  Pipeline: 18 raw → 9 deduped → 6 visible → 2 comment-ready │
+│  流水线：18 原始 → 9 去重 → 6 可见 → 2 评论就绪              │
 └──────────────────────────────────────────────────────────────┘
 ```
 
-1. Enter a GitHub PR URL: `https://github.com/owner/repo/pull/123`
-2. (Optional) Enable "Auto-comment to GitHub PR" to post findings
-3. (Optional) Provide a GitHub Token with `repo` scope
-4. Click **Start Review**
+1. 输入 GitHub PR 地址：`https://github.com/owner/repo/pull/123`
+2. （可选）开启"自动评论到 GitHub PR"来发布发现
+3. （可选）提供具有 `repo` 权限的 GitHub Token
+4. 点击 **开始审查**
 
-### Step 2: Progress Page — Real-time Pipeline Status
+### 步骤 2：进度页 — 实时流水线状态
 
-After submission, you're redirected to the task progress page. The system runs a 7-stage pipeline:
+提交后跳转到任务进度页。系统运行 7 阶段流水线：
 
 ```
 ┌──────────────────────────────────────────────────────────────┐
 │  PR #123 ─ owner/repo                                        │
 │                                                              │
 │  [████████░░░░░░░░░░░░░░░░░░░░░░░] 30%                       │
-│  Current: AI File Review                                     │
+│  当前：AI 文件审查                                            │
 │                                                              │
-│  Stages:                                                     │
-│  ✓ FETCHING_PR       — PR info + diff fetched                │
-│  ✓ BUILDING_CONTEXT  — Related files identified              │
-│  ✓ STATIC_SCAN       — 15 rules checked (2 found)            │
-│  ✓ AI_PR_SUMMARY     — PR summary generated                  │
-│  ⏳ AI_FILE_REVIEW   — Analyzing files...                    │
-│  ☐ AI_CROSS_FILE     — Waiting                              │
-│  ☐ MERGING_RESULTS   — Waiting                              │
+│  阶段：                                                      │
+│  ✓ FETCHING_PR       — PR 信息 + diff 已获取                 │
+│  ✓ BUILDING_CONTEXT  — 关联文件已识别                         │
+│  ✓ STATIC_SCAN       — 15 条规则已检查（发现 2 条）          │
+│  ✓ AI_PR_SUMMARY     — PR 摘要已生成                          │
+│  ⏳ AI_FILE_REVIEW   — 正在分析文件...                        │
+│  ☐ AI_CROSS_FILE     — 等待中                                │
+│  ☐ MERGING_RESULTS   — 等待中                                │
 │                                                              │
-│  Changed Files (risk-ranked):                                │
+│  变更文件（按风险排序）：                                      │
 │  ┌──────────────────────────────────────┐                    │
 │  │ user_service.py     HIGH   +32/-4    │                    │
 │  │ ████████░░░░░░░░░░                   │                    │
@@ -78,91 +78,91 @@ After submission, you're redirected to the task progress page. The system runs a
 └──────────────────────────────────────────────────────────────┘
 ```
 
-The page auto-polls every 2 seconds. When complete, click **View Report**.
+页面每 2 秒自动轮询。完成后点击 **查看报告**。
 
-### Step 3: Cockpit Report — Decision Dashboard
+### 步骤 3：驾驶舱报告 — 决策仪表盘
 
-The report page is the core of the Cockpit experience:
+报告页面是驾驶舱体验的核心：
 
 ```
 ┌──────────────────────────────────────────────────────────────┐
-│  [Metric Cards]                                              │
+│  [指标卡片]                                                   │
 │  ┌────────┐ ┌──────────┐ ┌──────────┐ ┌──────────────────┐  │
-│  │HIGH    │ │Conf: 78% │ │6 findings│ │Fix before merge   │  │
-│  │Risk Lv │ │avg across│ │2 critical│ │Review Decision    │  │
+│  │HIGH    │ │置信度: 78%│ │6 个发现  │ │先修复再合并       │  │
+│  │风险等级 │ │平均      │ │2 个严重  │ │评审决策           │  │
 │  └────────┘ └──────────┘ └──────────┘ └──────────────────┘  │
 ├──────────────┬───────────────────────────────────────────────┤
-│ File Risk Map│ [Pipeline Bar]                                │
-│ ─────────────│ Raw:18 → Deduped:9 → Visible:6 → GH Ready:2  │
+│ 文件风险地图  │ [流水线条]                                     │
+│ ─────────────│ 原始:18 → 去重:9 → 可见:6 → GH 就绪:2          │
 │ user_svc.py  │                                               │
-│ ████████░ 80%│ [Review Decision Card]                        │
-│ +32/-4 3 fnd│ Decision: Fix before merge — 存在 high 风险    │
-│ deep review  │ Reasons:                                      │
-│              │  • Hardcoded password in user_service.py       │
-│ README.md    │  • Unsafe SQL delete in user_dao.py           │
+│ ████████░ 80%│ [评审决策卡片]                                  │
+│ +32/-4 3 发现│ 决策：先修复再合并 — 存在 high 风险             │
+│ 深度审查     │ 原因：                                         │
+│              │  • user_service.py 中发现硬编码密码              │
+│ README.md    │  • user_dao.py 中发现危险 SQL 删除              │
 │ ██░░░░░░ 10% │                                               │
-│ +8/-0 clean  │ [Findings by Severity]                        │
-│ skip         │ ┌─ Critical ──────────────────────────────┐   │
-│              │ │ Hardcoded password detected [S005]       │   │
-│ [Overview]   │ │ conf: 85% ████████████████░              │   │
-│ Critical: 1  │ │ user_service.py:42                       │   │
-│ High: 1      │ │ Evidence Chain:                          │   │
-│ Medium: 0    │ │ File→S005 hardcoded_password→85% conf    │   │
-│ Low: 0       │ │ Suggestion: Use env vars not literals    │   │
-│              │ └──────────────────────────────────────────┘   │
-│ Key Focus:   │ ┌─ High ──────────────────────────────────┐   │
-│ • Hardcoded  │ │ Unsafe delete without WHERE [S014]      │   │
-│   password   │ │ conf: 85% ████████████████░              │   │
-│              │ │ user_dao.py:88                           │   │
-│              │ └──────────────────────────────────────────┘   │
+│ +8/-0 干净   │ [按严重等级的发现]                              │
+│ 跳过         │ ┌─ 严重 ─────────────────────────────────┐    │
+│              │ │ 检测到硬编码密码 [S005]                  │    │
+│ [概览]       │ │ 置信度: 85% ████████████████░           │    │
+│ 严重: 1      │ │ user_service.py:42                      │    │
+│ 高: 1        │ │ 证据链：                                │    │
+│ 中: 0        │ │ 文件→S005 hardcoded_password→85% 置信度│    │
+│ 低: 0        │ │ 建议：使用环境变量而非字面量             │    │
+│              │ └─────────────────────────────────────────┘    │
+│ 重点关注：   │ ┌─ 高 ─────────────────────────────────────┐  │
+│ • 硬编码密码  │ │ 无 WHERE 条件的危险删除 [S014]           │  │
+│              │ │ 置信度: 85% ████████████████░             │  │
+│              │ │ user_dao.py:88                            │  │
+│              │ └──────────────────────────────────────────┘  │
 └──────────────┴───────────────────────────────────────────────┘
 ```
 
-**Key features on this page:**
+**此页面的关键功能：**
 
-| Feature | Description |
-|---------|-------------|
-| **Metric Cards** | Risk Level, Avg Confidence, Finding counts, Merge Decision |
-| **File Risk Map** | Click any file to filter findings by file |
-| **Pipeline Bar** | Raw → Deduped → Confidence Gate → GitHub Ready |
-| **Review Decision** | "Block merge" / "Fix before merge" / "Review recommended" / "Ready to merge" |
-| **Severity Tabs** | Filter findings by severity level |
-| **Confidence Filter** | Toggle `Hide low conf (< 0.60)` |
-| **Evidence Chain** | Each finding shows evidence trace |
-| **Feedback Buttons** | Mark findings as Valid / FP / Resolved |
-| **Keyboard Shortcuts** | `1-5` filter, `F` next, `R` refresh |
+| 功能 | 说明 |
+|------|------|
+| **指标卡片** | 风险等级、平均置信度、发现数量、合并决策 |
+| **文件风险地图** | 点击任意文件过滤该文件的发现 |
+| **流水线条** | 原始 → 去重 → 置信度门禁 → GitHub 就绪 |
+| **评审决策** | "阻止合并"/"先修复再合并"/"建议审查"/"可安全合并" |
+| **严重等级标签** | 按严重等级过滤发现 |
+| **置信度过滤** | 开关"隐藏低置信度（< 0.60）" |
+| **证据链** | 每个发现展示证据轨迹 |
+| **反馈按钮** | 标记发现为有效 / 误报 / 已解决 |
+| **键盘快捷键** | `1-5` 过滤、`F` 下一条、`R` 刷新 |
 
-### Step 4: GitHub PR Comment
+### 步骤 4：GitHub PR 评论
 
-If `auto_comment` was enabled, the system posts a structured comment to the PR:
+如果开启了 `auto_comment`，系统会向 PR 发布结构化评论：
 
 ```
 ## 🤖 AI Review Cockpit
 
-**Risk Level:** HIGH
-**Merge Suggestion:** 建议修复 high 及以上风险后再合并
-**Findings Found:** 3
+**风险等级：** HIGH
+**合并建议：** 建议修复 high 及以上风险后再合并
+**发现的发现数：** 3
 
-### Key Focus
-- Hardcoded password in user_service.py
-- Unsafe delete in user_dao.py
+### 重点关注
+- user_service.py 中发现硬编码密码
+- user_dao.py 中发现危险删除
 
-### High Risk Issues
-1. `user_service.py:42` — Hardcoded password detected [S005] (conf: 85%)
-2. `user_dao.py:88` — Unsafe delete without WHERE [S014] (conf: 85%)
+### 高风险问题
+1. `user_service.py:42` — 检测到硬编码密码 [S005]（置信度：85%）
+2. `user_dao.py:88` — 无 WHERE 条件的危险删除 [S014]（置信度：85%）
 
-### Evidence Summary
-- **Hardcoded password** (`user_service.py`): Hardcoded password/secret detected
-- **Unsafe delete** (`user_dao.py`): Delete/update without obvious WHERE condition
+### 证据摘要
+- **硬编码密码**（`user_service.py`）：检测到硬编码密码/密钥
+- **危险删除**（`user_dao.py`）：DELETE/UPDATE 没有明显的 WHERE 条件
 ```
 
-The comment is *idempotent* — re-running the review updates the existing comment instead of creating a new one.
+评论是**幂等**的——重新运行审查会更新已有评论，而非创建新评论。
 
-## What to Try
+## 尝试场景
 
-| Scenario | PR Type | Expected Result |
-|----------|---------|----------------|
-| Documentation change | Only `.md` files | LOW risk, no findings |
-| Business logic change | Service methods without tests | MEDIUM risk, S015 flagged |
-| Security issue | Hardcoded passwords, unsafe SQL | HIGH risk, S005/S014 at conf 0.85 |
-| Mixed PR | Multiple file types | Varies by file risk levels |
+| 场景 | PR 类型 | 预期结果 |
+|------|---------|---------|
+| 文档变更 | 仅 `.md` 文件 | 低风险，无发现 |
+| 业务逻辑变更 | 无测试的服务方法变更 | 中风险，标记 S015 |
+| 安全问题 | 硬编码密码、危险 SQL | 高风险，S005/S014 置信度 0.85 |
+| 混合 PR | 多种文件类型 | 因文件风险等级而异 |
