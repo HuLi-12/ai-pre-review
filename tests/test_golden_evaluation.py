@@ -1,4 +1,9 @@
-from app.golden_evaluation import get_golden_cases, run_golden_evaluation
+from app.golden_evaluation import (
+    get_golden_cases,
+    get_real_pr_replay_cases,
+    run_golden_evaluation,
+    run_real_pr_replay_evaluation,
+)
 
 
 def test_golden_cases_cover_core_review_behaviors():
@@ -58,3 +63,26 @@ def test_golden_evaluation_reports_rule_level_metrics():
     assert report.rule_metrics["S005"]["recall"] == 1.0
     assert report.rule_metrics["S014"]["expected"] == 2
     assert report.rule_metrics["S015"]["false_positive"] == 0
+
+
+def test_real_pr_replay_cases_are_fixed_public_pr_snapshots():
+    cases = get_real_pr_replay_cases()
+
+    assert len(cases) >= 5
+    assert all(case.source_url.startswith("https://github.com/") for case in cases)
+    assert all(case.changed_files for case in cases)
+
+
+def test_real_pr_replay_evaluation_reports_metrics_and_evidence():
+    report = run_real_pr_replay_evaluation()
+
+    assert report.total_cases >= 5
+    assert report.precision == 1.0
+    assert report.false_positive_count == 0
+    assert "S015" in report.rule_metrics
+
+    localtunnel_case = next(case for case in report.cases if case.case_id == "real_localtunnel_auth_pr")
+    assert localtunnel_case.source_url == "https://github.com/localtunnel/localtunnel/pull/339"
+    assert "S015" in localtunnel_case.detected_rule_ids
+    assert localtunnel_case.finding_evidence
+    assert localtunnel_case.finding_evidence[0]["gate"] in {"visible", "github_ready"}

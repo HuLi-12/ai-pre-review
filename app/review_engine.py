@@ -201,6 +201,12 @@ class ReviewEngine:
                     "label": "Line",
                     "content": str(f.get("line")),
                 })
+            if f.get("line_content"):
+                evidence.append({
+                    "type": "code_snippet",
+                    "label": "Code",
+                    "content": f.get("line_content", "")[:240],
+                })
             finding_type = f.get("type", "") or source
             if finding_type and finding_type.startswith("S"):
                 evidence.append({
@@ -223,6 +229,13 @@ class ReviewEngine:
                 "label": "Confidence Gate",
                 "content": f"{conf_pct}% ({severity}) — {conf_label}",
             })
+
+            if f.get("confidence_reason"):
+                evidence.append({
+                    "type": "confidence_reason",
+                    "label": "Confidence Reason",
+                    "content": f.get("confidence_reason", ""),
+                })
 
             db_finding = PRReviewFinding(
                 task_id=task_id,
@@ -454,6 +467,8 @@ class ReviewEngine:
                     "suggestion": "",
                     "confidence": 0.0,
                     "source": "static_rule",
+                    "line_content": rf.line_content,
+                    "confidence_reason": "Deterministic static rule match with changed-line evidence",
                 })
 
         # Add AI file findings

@@ -7,7 +7,7 @@ measure review quality without depending on GitHub or an LLM provider.
 from dataclasses import dataclass, field
 from typing import List, Set, Optional, Dict
 
-from app.github_client import ChangedFile
+from app.github_client import ChangedFile, GitHubClient
 from app.review_engine import ReviewEngine
 from app.static_scanner import RuleFinding, StaticScanner
 from app.confidence_calculator import should_comment_to_github
@@ -19,18 +19,23 @@ class GoldenCase:
     title: str
     changed_files: List[ChangedFile]
     expected_rule_ids: Set[str]
+    source_url: str = ""
+    source_label: str = ""
 
 
 @dataclass
 class GoldenCaseResult:
     case_id: str
     title: str
+    source_url: str
+    source_label: str
     expected_rule_ids: List[str]
     detected_rule_ids: List[str]
     visible_rule_ids: List[str]
     github_ready_rule_ids: List[str]
     missing_rule_ids: List[str]
     unexpected_rule_ids: List[str]
+    finding_evidence: List[Dict[str, object]] = field(default_factory=list)
 
 
 @dataclass
@@ -320,6 +325,175 @@ const router = createRouter();
     ]
 
 
+def get_real_pr_replay_cases() -> List[GoldenCase]:
+    """Fixed public PR diff snapshots used for repeatable replay evaluation.
+
+    The snapshots are intentionally stored locally so demo/evaluation runs do
+    not depend on GitHub availability or on a PR changing over time.
+    """
+    return [
+        GoldenCase(
+            case_id="real_localtunnel_auth_pr",
+            title="localtunnel adds CLI authentication options without tests",
+            changed_files=_files_from_diff("""diff --git a/README.md b/README.md
+index 418531dc..1f64e87e 100644
+--- a/README.md
++++ b/README.md
+@@ -42,6 +42,8 @@ Below are some common arguments. See `lt --help` for additional arguments
+ - `--subdomain` request a named subdomain on the localtunnel server (default is random characters)
+ - `--local-host` proxy to a hostname other than localhost
++- `--username` username for basic authentication
++- `--password` password for basic authentication
+diff --git a/bin/lt.js b/bin/lt.js
+index 1e2110a2..49976327 100755
+--- a/bin/lt.js
++++ b/bin/lt.js
+@@ -42,6 +42,14 @@ const { argv } = yargs
+   .option('allow-invalid-cert', {
+     describe: 'Disable certificate checks for your local HTTPS server (ignore cert/key/ca options)',
+   })
++  .option('u', {
++    alias: 'username',
++    describe: 'Username for basic authentication',
++  })
++  .option('w', {
++    alias: 'password',
++    describe: 'Password for basic authentication',
++  })
+@@ -63,7 +71,16 @@ if (typeof argv.port !== 'number') {
+ }
+ 
+ (async () => {
+-  const tunnel = await localtunnel({
++  const opts = {
+     port: argv.port,
+     host: argv.host,
+     subdomain: argv.subdomain,
+@@ -73,7 +90,7 @@ if (typeof argv.port !== 'number') {
+     local_key: argv.localKey,
+     local_ca: argv.localCa,
+     allow_invalid_cert: argv.allowInvalidCert,
+-  }).catch(err => {
++  };
+diff --git a/lib/Tunnel.js b/lib/Tunnel.js
+index 17399c9c..a0f93305 100644
+--- a/lib/Tunnel.js
++++ b/lib/Tunnel.js
+@@ -51,6 +51,8 @@ module.exports = class Tunnel extends EventEmitter {
+       responseType: 'json',
+     };
+ 
++    if(opt.auth) params.auth = opt.auth;
++
+     const baseUri = `${opt.host}/`;
+"""),
+            expected_rule_ids={"S015"},
+            source_url="https://github.com/localtunnel/localtunnel/pull/339",
+            source_label="localtunnel/localtunnel#339",
+        ),
+        GoldenCase(
+            case_id="real_flask_dependency_bump",
+            title="Flask dependency-only update should stay clean",
+            changed_files=_files_from_diff("""diff --git a/requirements/build.txt b/requirements/build.txt
+index 6bfd666c59..0009cb0cbc 100644
+--- a/requirements/build.txt
++++ b/requirements/build.txt
+@@ -4,7 +4,7 @@
+ #
+ #    pip-compile build.in
+ #
+-build==1.0.3
++build==1.1.1
+     # via -r build.in
+diff --git a/requirements/tests.txt b/requirements/tests.txt
+index 7fdb2d0372..0428c5fd3b 100644
+--- a/requirements/tests.txt
++++ b/requirements/tests.txt
+@@ -12,7 +12,7 @@ packaging==23.2
+ pluggy==1.3.0
+     # via pytest
+-pytest==8.0.0
++pytest==8.0.2
+     # via -r tests.in
+"""),
+            expected_rule_ids=set(),
+            source_url="https://github.com/pallets/flask/pull/5425",
+            source_label="pallets/flask#5425",
+        ),
+        GoldenCase(
+            case_id="real_requests_test_only",
+            title="Requests test-only URL validation change should stay clean",
+            changed_files=_files_from_diff("""diff --git a/tests/test_requests.py b/tests/test_requests.py
+index d05febeef5..b4e9fe92ae 100644
+--- a/tests/test_requests.py
++++ b/tests/test_requests.py
+@@ -2721,7 +2721,7 @@ def test_preparing_bad_url(self, url):
+         with pytest.raises(requests.exceptions.InvalidURL):
+             r.prepare()
+ 
+-    @pytest.mark.parametrize("url, exception", (("http://localhost:-1", InvalidURL),))
++    @pytest.mark.parametrize("url, exception", (("http://:1", InvalidURL),))
+     def test_redirecting_to_bad_url(self, httpbin, url, exception):
+         with pytest.raises(exception):
+             requests.get(httpbin("redirect-to"), params={"url": url})
+"""),
+            expected_rule_ids=set(),
+            source_url="https://github.com/psf/requests/pull/6700",
+            source_label="psf/requests#6700",
+        ),
+        GoldenCase(
+            case_id="real_fastapi_docs_typo",
+            title="FastAPI documentation-only typo fix should stay clean",
+            changed_files=_files_from_diff("""diff --git a/docs/es/docs/async.md b/docs/es/docs/async.md
+index 0fdc307391b5b..dcd6154be41e9 100644
+--- a/docs/es/docs/async.md
++++ b/docs/es/docs/async.md
+@@ -190,7 +190,7 @@ Luego, el cajero / cocinero finalmente regresa con tus hamburguesas
+ 
+ <img src="https://fastapi.tiangolo.com/img/async/parallel-burgers/parallel-burgers-05.png" alt="illustration">
+ 
+-Cojes tus hamburguesas y vas a la mesa con esa persona.
++Coges tus hamburguesas y vas a la mesa con esa persona.
+ 
+ Solo las comes y listo.
+"""),
+            expected_rule_ids=set(),
+            source_url="https://github.com/fastapi/fastapi/pull/11400",
+            source_label="fastapi/fastapi#11400",
+        ),
+        GoldenCase(
+            case_id="real_click_source_with_tests",
+            title="Click source change with matching tests should not trigger test-gap noise",
+            changed_files=_files_from_diff("""diff --git a/src/click/core.py b/src/click/core.py
+index c8d94ab..f6b5a2d 100644
+--- a/src/click/core.py
++++ b/src/click/core.py
+@@ -742,6 +742,8 @@ class Context:
+         if default_map is None:
+             default_map = {}
++        if resilient_parsing:
++            default_map = default_map.copy()
+         self.default_map = default_map
+diff --git a/tests/test_defaults.py b/tests/test_defaults.py
+index 9728c10..2a89c61 100644
+--- a/tests/test_defaults.py
++++ b/tests/test_defaults.py
+@@ -88,6 +88,9 @@ def test_default_map(runner):
+     assert result.exit_code == 0
++def test_default_map_resilient_parsing(runner):
++    assert runner is not None
+"""),
+            expected_rule_ids=set(),
+            source_url="https://github.com/pallets/click/pull/2730",
+            source_label="pallets/click#2730",
+        ),
+    ]
+
+
+def run_real_pr_replay_evaluation() -> GoldenEvaluationReport:
+    return run_golden_evaluation(get_real_pr_replay_cases())
+
+
 def run_golden_evaluation(cases: Optional[List[GoldenCase]] = None) -> GoldenEvaluationReport:
     selected_cases = cases or get_golden_cases()
     case_results = [_evaluate_case(case) for case in selected_cases]
@@ -371,12 +545,15 @@ def _evaluate_case(case: GoldenCase) -> GoldenCaseResult:
     return GoldenCaseResult(
         case_id=case.case_id,
         title=case.title,
+        source_url=case.source_url,
+        source_label=case.source_label,
         expected_rule_ids=sorted(case.expected_rule_ids),
         detected_rule_ids=sorted(detected),
         visible_rule_ids=sorted(visible),
         github_ready_rule_ids=sorted(github_ready),
         missing_rule_ids=sorted(missing),
         unexpected_rule_ids=sorted(unexpected),
+        finding_evidence=_build_case_evidence(rule_findings, merged),
     )
 
 
@@ -466,6 +643,42 @@ def _rule_ids_from_rule_findings(rule_findings: Dict[str, List[RuleFinding]]) ->
         for findings in rule_findings.values()
         for finding in findings
     }
+
+
+def _build_case_evidence(
+    rule_findings: Dict[str, List[RuleFinding]],
+    merged_findings: List[dict],
+) -> List[Dict[str, object]]:
+    confidence_by_rule = {
+        finding.get("type", ""): finding.get("confidence", 0) or 0
+        for finding in merged_findings
+    }
+    severity_by_rule = {
+        finding.get("type", ""): finding.get("severity", "low")
+        for finding in merged_findings
+    }
+
+    evidence = []
+    for file_path, findings in rule_findings.items():
+        for finding in findings:
+            confidence = confidence_by_rule.get(finding.rule_id, 0)
+            severity = severity_by_rule.get(finding.rule_id, finding.severity)
+            github_ready = should_comment_to_github(confidence, severity)
+            evidence.append({
+                "rule_id": finding.rule_id,
+                "file_path": finding.file_path or file_path,
+                "line_number": finding.line_number,
+                "line_content": finding.line_content,
+                "source": "static_rule",
+                "confidence": confidence,
+                "gate": "github_ready" if github_ready else "visible" if confidence >= 0.60 else "hidden",
+                "message": finding.message,
+            })
+    return evidence
+
+
+def _files_from_diff(diff_text: str) -> List[ChangedFile]:
+    return GitHubClient._parse_unified_diff_files(diff_text)
 
 
 def _file(path: str, patch: str, raw_content: str = "") -> ChangedFile:

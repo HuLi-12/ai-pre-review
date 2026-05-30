@@ -8,7 +8,7 @@ from sqlalchemy.orm import Session
 
 from config import settings
 from app.database import init_db, get_db, SessionLocal
-from app.golden_evaluation import run_golden_evaluation
+from app.golden_evaluation import run_golden_evaluation, run_real_pr_replay_evaluation
 from app.models import PRReviewTask, PRChangedFile, PRReviewFinding
 from app.routers import evaluation, tasks, reports
 
@@ -45,17 +45,20 @@ def index(request: Request):
     return templates.TemplateResponse("index.html", {
         "request": request,
         "golden_eval": run_golden_evaluation(),
+        "real_pr_replay": run_real_pr_replay_evaluation(),
     })
 
 
 @app.get("/evaluation", response_class=HTMLResponse)
 def evaluation_page(request: Request):
     report = run_golden_evaluation()
+    real_pr_report = run_real_pr_replay_evaluation()
     ordinary_baseline_count = report.expected_total + report.false_positive_count
     gate_filtered_count = max(0, ordinary_baseline_count - report.visible_expected_count)
     return templates.TemplateResponse("evaluation.html", {
         "request": request,
         "golden_eval": report,
+        "real_pr_replay": real_pr_report,
         "ordinary_baseline_count": ordinary_baseline_count,
         "gate_filtered_count": gate_filtered_count,
     })

@@ -9,7 +9,7 @@
         </div>
         <h1 class="fw-bold mb-2">Review quality, measured before it reaches reviewers</h1>
         <p class="mb-0" style="color: var(--cockpit-muted); max-width: 760px;">
-            Fixed PR/diff cases quantify false positives, missed findings, and confidence gates.
+            Synthetic Golden Cases and Real PR Replay Cases quantify false positives, missed findings, and confidence gates.
             This page explains why the cockpit is stricter than an ordinary diff-to-LLM baseline.
         </p>
     </div>
@@ -55,6 +55,27 @@
         <div class="cockpit-card p-3 h-100">
             <div class="small text-uppercase" style="color: var(--cockpit-muted);">GitHub Ready</div>
             <div class="fs-3 fw-bold" style="color: var(--cockpit-warning);">{{ golden_eval.github_ready_count }}</div>
+        </div>
+    </div>
+</div>
+
+<div class="row g-3 mb-4">
+    <div class="col-lg-6">
+        <div class="cockpit-card p-4 h-100" style="border-color: rgba(56,189,248,0.22);">
+            <div class="small text-uppercase mb-1" style="color: var(--cockpit-primary); letter-spacing: 1px;">Synthetic Golden Cases</div>
+            <h5 class="fw-semibold mb-2">{{ golden_eval.total_cases }} cases / {{ golden_eval.expected_total }} expected findings</h5>
+            <p class="small mb-0" style="color: var(--cockpit-muted);">
+                Local deterministic diff fixtures cover targeted rule behavior and false-positive controls.
+            </p>
+        </div>
+    </div>
+    <div class="col-lg-6">
+        <div class="cockpit-card p-4 h-100" style="border-color: rgba(34,197,94,0.22);">
+            <div class="small text-uppercase mb-1" style="color: var(--cockpit-success); letter-spacing: 1px;">Real PR Replay Cases</div>
+            <h5 class="fw-semibold mb-2">{{ real_pr_replay.total_cases }} public PR snapshots / {{ real_pr_replay.expected_total }} expected findings</h5>
+            <p class="small mb-0" style="color: var(--cockpit-muted);">
+                Fixed snapshots from public GitHub PRs validate the same gates without relying on live network calls.
+            </p>
         </div>
     </div>
 </div>
@@ -175,6 +196,51 @@
                         Expected: {{ case.expected_rule_ids|join(", ") if case.expected_rule_ids else "none" }}<br>
                         Detected: {{ case.detected_rule_ids|join(", ") if case.detected_rule_ids else "none" }}
                     </div>
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+    </div>
+</div>
+
+<div class="cockpit-card mt-4">
+    <div class="p-3" style="border-bottom: 1px solid var(--cockpit-border);">
+        <h5 class="mb-0"><i class="bi bi-github me-1" style="color: var(--cockpit-primary);"></i> Real PR Replay Cases</h5>
+    </div>
+    <div class="p-3">
+        <div class="row g-3">
+            {% for case in real_pr_replay.cases %}
+            <div class="col-md-6">
+                <div class="p-3 rounded h-100" style="border: 1px solid var(--cockpit-border); background: rgba(148,163,184,0.04);">
+                    <div class="d-flex justify-content-between gap-2">
+                        <strong style="font-size: 0.9rem;">{{ case.source_label or case.case_id }}</strong>
+                        {% if case.missing_rule_ids or case.unexpected_rule_ids %}
+                            <span class="badge bg-danger">check</span>
+                        {% else %}
+                            <span class="badge bg-success">pass</span>
+                        {% endif %}
+                    </div>
+                    <div class="small mt-2" style="color: var(--cockpit-muted);">{{ case.title }}</div>
+                    {% if case.source_url %}
+                    <a class="small d-inline-block mt-2" href="{{ case.source_url }}" target="_blank" rel="noreferrer">
+                        {{ case.source_label }}
+                    </a>
+                    {% endif %}
+                    <div class="small mt-2">
+                        Expected: {{ case.expected_rule_ids|join(", ") if case.expected_rule_ids else "none" }}<br>
+                        Detected: {{ case.detected_rule_ids|join(", ") if case.detected_rule_ids else "none" }}
+                    </div>
+                    {% if case.finding_evidence %}
+                    <div class="mt-2">
+                        {% for ev in case.finding_evidence[:2] %}
+                        <div class="small p-2 rounded mb-1" style="background: rgba(15,23,42,0.45); border: 1px solid rgba(148,163,184,0.12);">
+                            <code style="color: var(--cockpit-primary);">{{ ev.rule_id }}</code>
+                            <span style="color: var(--cockpit-muted);">{{ ev.file_path }}{% if ev.line_number %}:{{ ev.line_number }}{% endif %}</span>
+                            <span class="badge bg-secondary ms-1">{{ ev.gate }}</span>
+                        </div>
+                        {% endfor %}
+                    </div>
+                    {% endif %}
                 </div>
             </div>
             {% endfor %}

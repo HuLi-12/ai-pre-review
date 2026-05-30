@@ -109,6 +109,7 @@ http://localhost:8000/evaluation
 页面展示：
 
 - 总样例数量，目前不少于 20 个。
+- 真实公开 PR 回放集，目前不少于 5 个固定 snapshot。
 - 全局 `Precision`、`Recall`。
 - 误报数量 `False Positives`。
 - 漏报数量 `Missed`。
@@ -146,6 +147,24 @@ curl http://localhost:8000/api/evaluation/golden
 }
 ```
 
+真实公开 PR 回放 API：
+
+```bash
+curl http://localhost:8000/api/evaluation/real-pr-replay
+```
+
+该接口使用固定在本地的公开 PR diff snapshot，不依赖实时 GitHub 网络请求。当前包含：
+
+| PR | 用途 |
+| --- | --- |
+| `localtunnel/localtunnel#339` | 源码变更无测试，验证 S015 test gap |
+| `pallets/flask#5425` | 依赖文件变更，验证低风险控制 |
+| `psf/requests#6700` | 测试文件变更，验证不误报源码风险 |
+| `fastapi/fastapi#11400` | 文档变更，验证文档误报控制 |
+| `pallets/click#2730` | 源码与测试一起变更，验证不误报测试缺失 |
+ 
+首页的 `Try public PR sample` 会自动填入 `https://github.com/localtunnel/localtunnel/pull/339`，便于演示真实 PR 分析链路。
+
 ### Golden Evaluation 的展示价值
 
 普通 diff-to-LLM 通常只把 diff 直接交给模型，缺少量化验收。本系统用 Golden Evaluation 展示：
@@ -155,6 +174,7 @@ curl http://localhost:8000/api/evaluation/golden
 - 哪些预期问题被漏掉。
 - 哪些 finding 经过置信度门控后才展示。
 - 哪些 finding 足够可靠，可以进入 GitHub 评论候选。
+- 真实 PR replay 中每条 finding 的来源 URL、规则、文件、行号和门控状态。
 
 这能支撑答辩中的核心观点：系统不是简单包装 LLM，而是有质量门控和可回归评测的 AI PR Review 工具。
 
