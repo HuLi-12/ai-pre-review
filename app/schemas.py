@@ -29,6 +29,7 @@ class FindingItem(BaseModel):
     reason: Optional[str] = None
     suggestion: Optional[str] = None
     confidence: Optional[float] = None
+    evidence_json: Optional[str] = None
 
     class Config:
         from_attributes = True

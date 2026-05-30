@@ -55,6 +55,7 @@ class PRReviewFinding(Base):
     reason = Column(Text, nullable=True)
     suggestion = Column(Text, nullable=True)
     confidence = Column(DECIMAL(4, 3), nullable=True)
+    evidence_json = Column(Text, nullable=True)
     status = Column(String(32), default="OPEN")
     created_at = Column(DateTime, default=datetime.datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.datetime.utcnow, onupdate=datetime.datetime.utcnow)

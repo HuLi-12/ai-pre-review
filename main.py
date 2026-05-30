@@ -25,6 +25,8 @@ app.include_router(reports.router)
 
 # Templates
 templates = Jinja2Templates(directory="templates")
+import json
+templates.env.filters["from_json"] = lambda s: json.loads(s) if s else []
 
 
 @app.on_event("startup")
