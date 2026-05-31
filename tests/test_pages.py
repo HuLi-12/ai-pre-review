@@ -11,6 +11,15 @@ def test_static_pages_render():
         assert client.get("/rules").status_code == 200
 
 
+def test_ui_uses_lighter_cockpit_theme():
+    base_html = open("templates/base.html", encoding="utf-8").read()
+    cockpit_css = open("static/css/cockpit.css", encoding="utf-8").read()
+
+    assert 'data-bs-theme="light"' in base_html
+    assert "--cockpit-bg: #F6F8FB;" in cockpit_css
+    assert "--cockpit-card: #FFFFFF;" in cockpit_css
+
+
 def test_home_page_shows_golden_evaluation_metrics():
     with TestClient(app) as client:
         response = client.get("/")

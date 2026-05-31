@@ -4,17 +4,18 @@
 
 /* --- Design Tokens (Root Variables) -------------------------------- */
 :root {
-  --cockpit-bg: #0B1020;
-  --cockpit-card: rgba(255, 255, 255, 0.06);
-  --cockpit-border: rgba(148, 163, 184, 0.2);
-  --cocktip-border-hover: rgba(148, 163, 184, 0.35);
-  --cockpit-primary: #38BDF8;
-  --cockpit-danger: #EF4444;
-  --cockpit-warning: #F59E0B;
-  --cockpit-success: #22C55E;
-  --cockpit-text: #E5E7EB;
+  --cockpit-bg: #F6F8FB;
+  --cockpit-card: #FFFFFF;
+  --cockpit-border: rgba(15, 23, 42, 0.12);
+  --cockpit-border-hover: rgba(37, 99, 235, 0.28);
+  --cockpit-primary: #2563EB;
+  --cockpit-danger: #DC2626;
+  --cockpit-warning: #D97706;
+  --cockpit-success: #059669;
+  --cockpit-text: #111827;
   --cockpit-muted: #64748B;
-  --cockpit-accent-purple: #818CF8;
+  --cockpit-accent-purple: #7C3AED;
+  --cockpit-surface: #F8FAFC;
 }
 
 /* --- Base ---------------------------------------------------------- */
@@ -25,14 +26,15 @@ body {
 }
 
 .navbar {
-  background: rgba(11, 16, 32, 0.95) !important;
+  background: rgba(255, 255, 255, 0.92) !important;
   backdrop-filter: blur(12px);
   border-bottom: 1px solid var(--cockpit-border);
+  box-shadow: 0 8px 24px rgba(15, 23, 42, 0.05);
 }
 .navbar-brand {
   font-weight: 700;
-  letter-spacing: -0.5px;
-  background: linear-gradient(135deg, #38BDF8, #818CF8);
+  letter-spacing: 0;
+  background: linear-gradient(135deg, #2563EB, #7C3AED);
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
 }
@@ -55,8 +57,8 @@ body {
 .cockpit-card {
   background: var(--cockpit-card);
   border: 1px solid var(--cockpit-border);
-  border-radius: 12px;
-  backdrop-filter: blur(8px);
+  border-radius: 10px;
+  box-shadow: 0 14px 32px rgba(15, 23, 42, 0.06);
 }
 .cockpit-card-hoverable:hover {
   border-color: var(--cockpit-border-hover);
@@ -107,12 +109,12 @@ body {
 
 /* --- Text & Border Utilities --------------------------------------- */
 .text-gradient {
-  background: linear-gradient(135deg, #38BDF8, #818CF8);
+  background: linear-gradient(135deg, #2563EB, #7C3AED);
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
 }
 .border-gradient {
-  border-image: linear-gradient(135deg, #38BDF8, #818CF8) 1;
+  border-image: linear-gradient(135deg, #2563EB, #7C3AED) 1;
 }
 
 /* --- Section Header (with bottom border) -------------------------- */
@@ -271,6 +273,32 @@ kbd.cockpit-kbd {
 .text-cockpit-text { color: var(--cockpit-text); }
 .border-cockpit { border-color: var(--cockpit-border); }
 .bg-cockpit-subtle { background: rgba(148, 163, 184, 0.06); }
+
+/* Bootstrap overrides for the light cockpit theme. */
+.text-light {
+  color: var(--cockpit-text) !important;
+}
+.btn-outline-light {
+  color: var(--cockpit-primary);
+  border-color: rgba(37, 99, 235, 0.34);
+  background: rgba(255, 255, 255, 0.72);
+}
+.btn-outline-light:hover,
+.btn-outline-light:focus {
+  color: #fff;
+  border-color: var(--cockpit-primary);
+  background: var(--cockpit-primary);
+}
+.form-control.bg-transparent {
+  background: #fff !important;
+}
+.table {
+  --bs-table-bg: #fff;
+  --bs-table-color: var(--cockpit-text);
+  --bs-table-border-color: var(--cockpit-border);
+  --bs-table-hover-bg: #F1F5F9;
+  --bs-table-hover-color: var(--cockpit-text);
+}
 
 /* --- Empty state --------------------------------------------------- */
 .empty-state-icon {
