@@ -25,7 +25,7 @@ print("[DEBUG] initializing routes")
 
 
 # S008: New API endpoint without authentication
-# S009: New API endpoint without validation (no @Valid/@NotNull etc.)
+# S009 trigger: new API endpoint missing param validation annotations
 @router.post("/users")
 async def create_user(req: Request, body: UserCreateRequest):
     # S001: debug print
