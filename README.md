@@ -25,6 +25,7 @@ AI semantic review is validated through real PR replay and manual inspection.
 
 ## 演示
 
+> 📺 演示视频：[AI Review Cockpit 完整流程](https://b23.tv/JcFwsMp)  
 > 完整操作指南含截图：[`docs/demo/README.md`](docs/demo/README.md)
 
 ### 1. 提交 PR
