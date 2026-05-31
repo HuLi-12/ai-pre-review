@@ -68,6 +68,9 @@ def test_evaluation_page_shows_rule_metrics_and_gate_comparison():
     assert response.status_code == 200
     assert "Golden Evaluation Dashboard" in response.text
     assert "Ordinary diff-to-LLM baseline" in response.text
+    assert "Baseline Candidates" in response.text
+    assert "Evidence Gate Retention" in response.text
+    assert "Invalid Model Output" in response.text
     assert "Synthetic Golden Cases" in response.text
     assert "Real PR Replay Cases" in response.text
     assert "Rule-level Quality" in response.text

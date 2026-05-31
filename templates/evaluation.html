@@ -89,7 +89,11 @@
             </h5>
             <div class="d-flex justify-content-between mb-2">
                 <span style="color: var(--cockpit-muted);">Candidate suggestions</span>
-                <strong>{{ ordinary_baseline_count }}</strong>
+                <strong>{{ golden_eval.baseline_candidate_count }}</strong>
+            </div>
+            <div class="d-flex justify-content-between mb-2">
+                <span style="color: var(--cockpit-muted);">Baseline Candidates</span>
+                <strong>{{ golden_eval.baseline_candidate_count }}</strong>
             </div>
             <div class="d-flex justify-content-between mb-2">
                 <span style="color: var(--cockpit-muted);">Confidence gate</span>
@@ -117,13 +121,33 @@
                 <div class="col-md-4">
                     <div class="p-3 rounded" style="background: rgba(245,158,11,0.08); border: 1px solid rgba(245,158,11,0.16);">
                         <div class="small text-uppercase" style="color: var(--cockpit-muted);">Filtered Noise</div>
-                        <div class="fs-4 fw-bold">{{ gate_filtered_count }}</div>
+                        <div class="fs-4 fw-bold">{{ golden_eval.noise_filtered_count }}</div>
                     </div>
                 </div>
                 <div class="col-md-4">
                     <div class="p-3 rounded" style="background: rgba(34,197,94,0.08); border: 1px solid rgba(34,197,94,0.16);">
                         <div class="small text-uppercase" style="color: var(--cockpit-muted);">Comment Ready</div>
                         <div class="fs-4 fw-bold">{{ golden_eval.github_ready_count }}</div>
+                    </div>
+                </div>
+            </div>
+            <div class="row g-3 mt-1">
+                <div class="col-md-4">
+                    <div class="p-3 rounded" style="background: rgba(37,99,235,0.07); border: 1px solid rgba(37,99,235,0.14);">
+                        <div class="small text-uppercase" style="color: var(--cockpit-muted);">Evidence Gate Retention</div>
+                        <div class="fs-4 fw-bold">{{ (golden_eval.evidence_gate_retention_rate * 100)|int }}%</div>
+                    </div>
+                </div>
+                <div class="col-md-4">
+                    <div class="p-3 rounded" style="background: rgba(5,150,105,0.07); border: 1px solid rgba(5,150,105,0.14);">
+                        <div class="small text-uppercase" style="color: var(--cockpit-muted);">Evidence-backed</div>
+                        <div class="fs-4 fw-bold">{{ golden_eval.evidence_backed_count }}</div>
+                    </div>
+                </div>
+                <div class="col-md-4">
+                    <div class="p-3 rounded" style="background: rgba(220,38,38,0.07); border: 1px solid rgba(220,38,38,0.14);">
+                        <div class="small text-uppercase" style="color: var(--cockpit-muted);">Invalid Model Output</div>
+                        <div class="fs-4 fw-bold">{{ golden_eval.invalid_finding_count }}</div>
                     </div>
                 </div>
             </div>
@@ -196,6 +220,9 @@
                         Expected: {{ case.expected_rule_ids|join(", ") if case.expected_rule_ids else "none" }}<br>
                         Detected: {{ case.detected_rule_ids|join(", ") if case.detected_rule_ids else "none" }}
                     </div>
+                    <div class="small mt-2" style="color: var(--cockpit-muted);">
+                        Pipeline: {{ case.raw_finding_count }} raw / {{ case.invalid_finding_count }} invalid / {{ case.visible_finding_count }} visible
+                    </div>
                 </div>
             </div>
             {% endfor %}
@@ -229,6 +256,9 @@
                     <div class="small mt-2">
                         Expected: {{ case.expected_rule_ids|join(", ") if case.expected_rule_ids else "none" }}<br>
                         Detected: {{ case.detected_rule_ids|join(", ") if case.detected_rule_ids else "none" }}
+                    </div>
+                    <div class="small mt-2" style="color: var(--cockpit-muted);">
+                        Pipeline: {{ case.raw_finding_count }} raw / {{ case.invalid_finding_count }} invalid / {{ case.visible_finding_count }} visible / {{ case.evidence_backed_count }} evidence-backed
                     </div>
                     {% if case.finding_evidence %}
                     <div class="mt-2">
