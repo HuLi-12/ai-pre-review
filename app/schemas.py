@@ -46,6 +46,7 @@ class ReportResponse(BaseModel):
     deduped_finding_count: int = 0
     visible_finding_count: int = 0
     github_ready_count: int = 0
+    invalid_finding_count: int = 0
 
 
 class FeedbackRequest(BaseModel):

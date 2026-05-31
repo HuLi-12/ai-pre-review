@@ -69,6 +69,7 @@ def get_report(task_id: int, db: Session = Depends(get_db)):
         deduped_finding_count=task.deduped_finding_count or 0,
         visible_finding_count=task.visible_finding_count or len(findings),
         github_ready_count=task.github_ready_count or 0,
+        invalid_finding_count=task.invalid_finding_count or 0,
         findings=[FindingItem(
             id=f.id,
             file_path=f.file_path,

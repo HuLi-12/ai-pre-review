@@ -1,7 +1,8 @@
 from fastapi.testclient import TestClient
+import json
 
 from app.database import SessionLocal
-from app.models import PRReviewTask
+from app.models import PRReviewFinding, PRReviewTask
 from main import app
 
 
@@ -89,6 +90,7 @@ def test_report_page_shows_cockpit_vs_plain_llm_gate():
             deduped_finding_count=6,
             visible_finding_count=4,
             github_ready_count=2,
+            invalid_finding_count=3,
         )
         db.add(task)
         db.commit()
@@ -103,4 +105,67 @@ def test_report_page_shows_cockpit_vs_plain_llm_gate():
     assert "Cockpit Quality Gate" in response.text
     assert "Plain diff-to-LLM" in response.text
     assert "10 raw" in response.text
+    assert "3 invalid" in response.text
     assert "2 comment-ready" in response.text
+
+    with TestClient(app) as client:
+        api_response = client.get(f"/api/tasks/{task_id}/report")
+
+    assert api_response.status_code == 200
+    assert api_response.json()["invalid_finding_count"] == 3
+
+
+def test_report_page_highlights_changed_line_evidence():
+    db = SessionLocal()
+    try:
+        task = PRReviewTask(
+            repo_owner="demo",
+            repo_name="repo",
+            pr_number=2,
+            pr_url="https://github.com/demo/repo/pull/2",
+            status="DONE",
+            risk_level="HIGH",
+            raw_finding_count=1,
+            deduped_finding_count=1,
+            visible_finding_count=1,
+            github_ready_count=1,
+        )
+        db.add(task)
+        db.commit()
+        db.refresh(task)
+        finding = PRReviewFinding(
+            task_id=task.id,
+            file_path="app/service.py",
+            line_number=42,
+            finding_type="correctness",
+            severity="high",
+            title="Missing null check before dereference",
+            reason="The changed line dereferences user without a guard.",
+            suggestion="Check user before returning user.name.",
+            confidence=0.82,
+            evidence_json=json.dumps([
+                {"type": "ai_source", "label": "AI Source", "content": "ai_file"},
+                {"type": "code_snippet", "label": "Code", "content": "return user.name"},
+                {
+                    "type": "confidence_reason",
+                    "label": "Confidence Reason",
+                    "content": "AI finding anchored to changed-line evidence",
+                },
+            ]),
+        )
+        db.add(finding)
+        db.commit()
+        task_id = task.id
+    finally:
+        db.close()
+
+    with TestClient(app) as client:
+        response = client.get(f"/tasks/{task_id}/report")
+
+    assert response.status_code == 200
+    assert "Changed-line Evidence" in response.text
+    assert "return user.name" in response.text
+    assert "Confidence Reason" in response.text
+    assert "AI finding anchored to changed-line evidence" in response.text
+    assert "Review Source" in response.text
+    assert "ai_file" in response.text

@@ -26,6 +26,7 @@ def test_ensure_sqlite_schema_adds_missing_model_columns():
     assert "deduped_finding_count" in columns
     assert "visible_finding_count" in columns
     assert "github_ready_count" in columns
+    assert "invalid_finding_count" in columns
 
 
 def test_finding_confidence_uses_sqlite_safe_float_type():

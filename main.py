@@ -228,6 +228,7 @@ def view_report(request: Request, task_id: int):
                 "deduped_count": task.deduped_finding_count or len(findings),
                 "visible_count": task.visible_finding_count or len(findings),
                 "github_ready": task.github_ready_count or github_ready,
+                "invalid_count": task.invalid_finding_count or 0,
                 "review_decision": review_decision,
                 "decision_reason": decision_reason,
             },

@@ -194,6 +194,7 @@
                 </div>
                 <div class="d-flex gap-2 flex-wrap">
                     <span class="badge bg-secondary bg-opacity-25 border border-secondary px-3 py-2">{{ cockpit_metrics.raw_count }} raw</span>
+                    <span class="badge bg-secondary bg-opacity-25 border border-secondary px-3 py-2">{{ cockpit_metrics.invalid_count }} invalid</span>
                     <span class="badge bg-primary bg-opacity-25 border border-primary px-3 py-2">{{ cockpit_metrics.deduped_count }} deduped</span>
                     <span class="badge bg-warning bg-opacity-25 border border-warning text-warning px-3 py-2">{{ cockpit_metrics.visible_count }} visible</span>
                     <span class="badge bg-success bg-opacity-25 border border-success text-success px-3 py-2">{{ cockpit_metrics.github_ready }} comment-ready</span>
@@ -317,6 +318,36 @@
                                     <!-- Evidence Chain -->
                                     {% set evidence_items = f.evidence_json | default('[]') | from_json %}
                                     {% if evidence_items %}
+                                    {% set evidence = namespace(code='', confidence_reason='', source='') %}
+                                    {% for ev in evidence_items %}
+                                        {% if ev.type == 'code_snippet' %}
+                                            {% set evidence.code = ev.content %}
+                                        {% elif ev.type == 'confidence_reason' %}
+                                            {% set evidence.confidence_reason = ev.content %}
+                                        {% elif ev.type in ['ai_source', 'rule_match'] %}
+                                            {% set evidence.source = ev.content %}
+                                        {% endif %}
+                                    {% endfor %}
+                                    {% if evidence.code or evidence.confidence_reason or evidence.source %}
+                                    <div class="mb-2 p-3 rounded" style="background: rgba(37,99,235,0.05); border: 1px solid rgba(37,99,235,0.16);">
+                                        <div class="d-flex align-items-center gap-2 mb-2">
+                                            <i class="bi bi-crosshair" style="color: var(--cockpit-primary);"></i>
+                                            <strong style="font-size: 0.78rem; color: var(--cockpit-text);">Changed-line Evidence</strong>
+                                            {% if evidence.source %}
+                                            <span class="badge bg-primary bg-opacity-10 text-primary border border-primary border-opacity-25">Review Source: {{ evidence.source }}</span>
+                                            {% endif %}
+                                        </div>
+                                        {% if evidence.code %}
+                                        <pre class="mb-2 p-2 rounded" style="background: #0F172A; color: #E2E8F0; border: 1px solid rgba(15,23,42,0.2); font-size: 0.78rem; white-space: pre-wrap;"><code>{{ evidence.code }}</code></pre>
+                                        {% endif %}
+                                        {% if evidence.confidence_reason %}
+                                        <div style="font-size: 0.76rem; color: var(--cockpit-muted);">
+                                            <strong style="color: var(--cockpit-text);">Confidence Reason:</strong>
+                                            {{ evidence.confidence_reason }}
+                                        </div>
+                                        {% endif %}
+                                    </div>
+                                    {% endif %}
                                     <div class="mb-2 p-2 rounded" style="background: rgba(148,163,184,0.04); border: 1px solid rgba(148,163,184,0.1);">
                                         <div style="font-size: 0.65rem; color: var(--cockpit-muted, #64748B); letter-spacing: 0.5px; text-transform: uppercase; margin-bottom: 4px;">
                                             <i class="bi bi-diagram-2 me-1"></i> Evidence Chain

@@ -1,43 +1,26 @@
 import json
 import re
 from typing import Optional, List, Dict, Any
-from openai import OpenAI
 from config import settings
+from app.ai_provider import OpenAICompatibleAdapter, build_model_config
 
 
 class AIClient:
     """AI client wrapper supporting OpenAI-compatible APIs."""
 
-    def __init__(self, api_key: Optional[str] = None, api_base: Optional[str] = None):
-        self.api_key = settings.ai_api_key if api_key is None else api_key
-        self.client = None
-        if self.api_key:
-            self.client = OpenAI(
-                api_key=self.api_key,
-                base_url=api_base or settings.ai_api_base,
-                timeout=settings.ai_timeout_seconds,
-            )
-        self.model = settings.ai_model
-        self.deep_model = settings.ai_deep_model
+    def __init__(self, api_key: Optional[str] = None, api_base: Optional[str] = None, adapter=None):
+        self.config = build_model_config(settings, api_key=api_key, api_base=api_base)
+        self.adapter = adapter or OpenAICompatibleAdapter(self.config)
+        self.api_key = self.config.api_key
+        self.model = self.config.model
+        self.deep_model = self.config.deep_model
 
     def _call_llm(self, system_prompt: str, user_prompt: str,
                   model: Optional[str] = None, temperature: float = 0.1) -> str:
         """Call LLM with prompts and return text response"""
-        if not self.client:
+        if not self.adapter.enabled:
             return ""
-        try:
-            resp = self.client.chat.completions.create(
-                model=model or self.model,
-                temperature=temperature,
-                max_tokens=settings.ai_max_tokens,
-                messages=[
-                    {"role": "system", "content": system_prompt},
-                    {"role": "user", "content": user_prompt},
-                ],
-            )
-            return resp.choices[0].message.content or ""
-        except Exception:
-            return ""
+        return self.adapter.complete(system_prompt, user_prompt, model=model, temperature=temperature)
 
     def _call_llm_json(self, system_prompt: str, user_prompt: str,
                        model: Optional[str] = None) -> dict:
@@ -155,7 +138,7 @@ Output JSON format:
                      commit_messages: str, changed_files_summary: str) -> dict:
         """Stage 1: PR overall understanding and summary"""
         fallback = self._fallback_summary(pr_title, changed_files_summary)
-        if not self.client:
+        if not self.adapter.enabled:
             return fallback
 
         user_prompt = f"""PR Title: {pr_title}
@@ -169,7 +152,7 @@ Changed Files:
                     related_context: str, rule_findings: str) -> dict:
         """Stage 2: Analyze a single changed file"""
         fallback = {"file_summary": "AI review unavailable; static rules were used.", "findings": []}
-        if not self.client:
+        if not self.adapter.enabled:
             return fallback
 
         user_prompt = f"""File: {file_path}
@@ -194,7 +177,7 @@ Static Rule Findings:
     def cross_file_analysis(self, file_contexts: Dict[str, str]) -> dict:
         """Stage 3: Cross-file consistency analysis"""
         fallback = {"findings": []}
-        if not self.client:
+        if not self.adapter.enabled:
             return fallback
 
         context_parts = []

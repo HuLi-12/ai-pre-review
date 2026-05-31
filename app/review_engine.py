@@ -30,10 +30,13 @@ class ReviewResult:
     deduped_finding_count: int = 0
     visible_finding_count: int = 0
     github_ready_count: int = 0
+    invalid_finding_count: int = 0
 
 
 class ReviewEngine:
     """Multi-stage AI Review orchestration engine with risk-based prioritization."""
+
+    AI_SEVERITIES = {"critical", "high", "medium", "low"}
 
     def __init__(self, github_token: Optional[str] = None):
         self.github = GitHubClient(token=github_token)
@@ -96,6 +99,7 @@ class ReviewEngine:
             task.deduped_finding_count = counts.get("deduped", 0)
             task.visible_finding_count = counts.get("visible", len(merged))
             task.github_ready_count = counts.get("github_ready", 0)
+            task.invalid_finding_count = counts.get("invalid", 0)
 
             # ---- Stage 6: Generate Report ----
             await self._update_progress(task, db, "GENERATING_REPORT", 95)
@@ -117,6 +121,7 @@ class ReviewEngine:
             result.deduped_finding_count = counts.get("deduped", 0)
             result.visible_finding_count = counts.get("visible", len(merged))
             result.github_ready_count = counts.get("github_ready", 0)
+            result.invalid_finding_count = counts.get("invalid", 0)
 
             task.summary = report.markdown_summary
             task.risk_level = report.risk_level
@@ -487,6 +492,53 @@ class ReviewEngine:
         except (TypeError, ValueError):
             return 0
 
+    @staticmethod
+    def _coerce_model_confidence(confidence: Any) -> Optional[float]:
+        try:
+            value = float(confidence)
+        except (TypeError, ValueError):
+            return None
+        return max(0.0, min(1.0, value))
+
+    def _normalize_ai_file_finding(self, finding: Any) -> Optional[dict]:
+        """Validate and normalize a model-produced file finding."""
+        if not isinstance(finding, dict):
+            return None
+
+        file_path = str(finding.get("file", "")).strip()
+        title = str(finding.get("title", "")).strip()
+        reason = str(finding.get("reason", "")).strip()
+        suggestion = str(finding.get("suggestion", "")).strip()
+        severity = str(finding.get("severity", "")).strip().lower()
+        line = self._coerce_line_number(finding.get("line"))
+
+        if not file_path or not title or not reason or not suggestion:
+            return None
+        if severity not in self.AI_SEVERITIES:
+            return None
+        if line <= 0:
+            return None
+        if "confidence" not in finding:
+            return None
+
+        model_confidence = self._coerce_model_confidence(finding.get("confidence"))
+        if model_confidence is None:
+            return None
+
+        normalized = dict(finding)
+        normalized.update({
+            "file": file_path,
+            "line": line,
+            "severity": severity,
+            "title": title,
+            "reason": reason,
+            "suggestion": suggestion,
+            "model_confidence": model_confidence,
+            "source": "ai_file",
+        })
+        normalized.pop("confidence", None)
+        return normalized
+
     def _attach_changed_line_evidence(self, finding: dict) -> dict:
         """Anchor AI file findings to nearby changed lines when possible."""
         if finding.get("source") != "ai_file":
@@ -546,10 +598,15 @@ class ReviewEngine:
                     "confidence_reason": "Deterministic static rule match with changed-line evidence",
                 })
 
+        invalid_ai_count = 0
+
         # Add AI file findings
         for fd in file_findings:
-            fd["source"] = "ai_file"
-            merged.append(self._attach_changed_line_evidence(fd))
+            normalized = self._normalize_ai_file_finding(fd)
+            if normalized is None:
+                invalid_ai_count += 1
+                continue
+            merged.append(self._attach_changed_line_evidence(normalized))
 
         # Add cross-file findings
         for fd in cross_findings:
@@ -599,12 +656,13 @@ class ReviewEngine:
 
         # Save pipeline counts for cockpit metrics
         self._pipeline_counts = {
-            "raw": len(merged),
+            "raw": len(merged) + invalid_ai_count,
             "deduped": len(final_findings),
             "visible": len(filtered),
             "github_ready": sum(1 for f in filtered
                                 if should_comment_to_github(f.get("confidence", 0) or 0,
                                                             f.get("severity", "low"))),
+            "invalid": invalid_ai_count,
         }
 
         # Sort by severity then confidence

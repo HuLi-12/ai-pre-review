@@ -55,6 +55,13 @@ AI_DEEP_MODEL=provider-strong-model
 
 兼容说明：当前客户端使用 OpenAI-compatible Chat Completions 协议。DeepSeek、OpenAI、以及提供 `/v1/chat/completions` 兼容接口的服务可以直接配置；不兼容该协议的原生 SDK 供应商需要后续新增 adapter。
 
+代码层面已经拆出 provider adapter：
+
+- `ModelConfig`：统一描述 provider、base URL、模型名、超时和输出长度。
+- `ProviderStatus`：只暴露安全运行状态，不包含 API Key。
+- `OpenAICompatibleAdapter`：封装 `/v1/chat/completions` 调用，DeepSeek、OpenAI 和兼容服务共用这一层。
+- `AIClient`：只依赖 adapter 的 `complete()` 方法，后续接入 Gemini/Anthropic 原生 API 时可以新增 adapter，不需要改评审编排逻辑。
+
 ## 2. 启动服务
 
 ```bash
@@ -131,6 +138,8 @@ FETCHING_PR
 | `critical/high >= 0.70` | 高风险问题可进入 GitHub 评论候选 |
 
 AI finding 还会经过 changed-line evidence gate：文件级 AI 问题需要尽量锚定到 PR 新增行或其附近。如果模型给出的行号不在 changed hunk 附近，系统会降低置信度并默认过滤低证据结果；如果能绑定到 changed line，报告会保留对应代码片段和置信度原因。这是为了减少普通 diff-to-LLM 容易出现的“合理但无证据”误报。
+
+模型输出还会先经过结构校验：文件级 finding 必须包含有效的 `file`、正整数 `line`、`severity`、`title`、`reason`、`suggestion` 和数值型 `confidence`。`severity` 只接受 `critical/high/medium/low`，模型置信度会被裁剪到 `0.0-1.0`，不合格 finding 会计入 `invalid_finding_count`，不会进入去重、置信度门控或报告展示。
 
 ## 5. 使用 Golden Evaluation
 

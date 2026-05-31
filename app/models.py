@@ -24,6 +24,7 @@ class PRReviewTask(Base):
     deduped_finding_count = Column(Integer, default=0)
     visible_finding_count = Column(Integer, default=0)
     github_ready_count = Column(Integer, default=0)
+    invalid_finding_count = Column(Integer, default=0)
     created_at = Column(DateTime, default=datetime.datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.datetime.utcnow, onupdate=datetime.datetime.utcnow)
 
