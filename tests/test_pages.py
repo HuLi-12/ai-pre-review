@@ -417,6 +417,50 @@ def test_report_page_hydrates_missing_static_rule_suggestion():
     assert "Static Rule S005" in response.text
 
 
+def test_report_page_hydrates_missing_static_rule_review_source():
+    db = SessionLocal()
+    try:
+        task = PRReviewTask(
+            repo_owner="demo",
+            repo_name="repo",
+            pr_number=411,
+            pr_url="https://github.com/demo/repo/pull/411",
+            status="DONE",
+            risk_level="CRITICAL",
+            raw_finding_count=1,
+            deduped_finding_count=1,
+            visible_finding_count=1,
+            github_ready_count=1,
+        )
+        db.add(task)
+        db.commit()
+        db.add(PRReviewFinding(
+            task_id=task.id,
+            file_path="app/auth.py",
+            line_number=12,
+            finding_type="S005",
+            severity="critical",
+            title="Hardcoded password or secret detected",
+            reason="A deterministic static rule matched a changed line.",
+            suggestion="",
+            confidence=0.85,
+            evidence_json=json.dumps([
+                {"type": "rule_match", "label": "Static Rule", "content": "S005"},
+            ]),
+        ))
+        db.commit()
+        task_id = task.id
+    finally:
+        db.close()
+
+    with TestClient(app) as client:
+        response = client.get(f"/tasks/{task_id}/report")
+
+    assert response.status_code == 200
+    assert "Review Source:" in response.text
+    assert "Static Rule S005" in response.text
+
+
 def test_comment_preview_hydrates_missing_static_rule_suggestion():
     db = SessionLocal()
     try:
@@ -455,3 +499,43 @@ def test_comment_preview_hydrates_missing_static_rule_suggestion():
 
     assert response.status_code == 200
     assert "os.getenv" in response.json()["comment_markdown"]
+
+
+def test_comment_preview_includes_merge_suggestion():
+    db = SessionLocal()
+    try:
+        task = PRReviewTask(
+            repo_owner="demo",
+            repo_name="repo",
+            pr_number=410,
+            pr_url="https://github.com/demo/repo/pull/410",
+            status="DONE",
+            risk_level="CRITICAL",
+            raw_finding_count=1,
+            deduped_finding_count=1,
+            visible_finding_count=1,
+            github_ready_count=1,
+        )
+        db.add(task)
+        db.commit()
+        db.add(PRReviewFinding(
+            task_id=task.id,
+            file_path="app/db.py",
+            line_number=12,
+            finding_type="S014",
+            severity="critical",
+            title="Unsafe DELETE without WHERE",
+            reason="DELETE has no WHERE clause.",
+            suggestion="Add a WHERE clause scoped to the target id.",
+            confidence=0.85,
+        ))
+        db.commit()
+        task_id = task.id
+    finally:
+        db.close()
+
+    with TestClient(app) as client:
+        response = client.get(f"/api/tasks/{task_id}/comment-preview")
+
+    assert response.status_code == 200
+    assert "**合并建议:** 建议修复 critical 及以上风险后再合并" in response.json()["comment_markdown"]

@@ -49,11 +49,13 @@ def test_github_comment_all_filtered_shows_fallback_message():
         "high": [],
         "low": [],
     }
-    report = Report(risk_level="LOW", merge_suggestion="safe",
+    report = Report(risk_level="MEDIUM", merge_suggestion="review medium risks",
                     findings_by_severity=findings)
 
     comment = ReportGenerator.generate_github_comment(report)
 
+    assert "**风险等级:** `MEDIUM`" in comment
+    assert "**合并建议:** review medium risks"
     assert "均未达到 GitHub 评论置信标准" in comment
     assert "小问题" not in comment
 

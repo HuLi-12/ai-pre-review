@@ -148,14 +148,14 @@ class ReportGenerator:
             all_findings.extend(sev_list)
         github_ready = [f for f in all_findings if f.get("github_ready", False)]
 
+        parts.append(f"**风险等级:** `{report.risk_level}`")
+        parts.append(f"**合并建议:** {report.merge_suggestion}")
+        parts.append(f"**共发现:** {total} 个问题（{len(github_ready)} 个达到展示标准）\n")
+
         if not github_ready:
             parts.append(f"本次评审共发现 {total} 个问题，但均未达到 GitHub 评论置信标准。\n")
             parts.append("*完整报告请查看 AI Review Cockpit。*\n")
             return "\n".join(parts)
-
-        parts.append(f"**风险等级:** `{report.risk_level}`")
-        parts.append(f"**合并建议:** {report.merge_suggestion}")
-        parts.append(f"**共发现:** {total} 个问题（{len(github_ready)} 个达到展示标准）\n")
 
         # Summary
         if report.key_focus_points:

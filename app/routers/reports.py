@@ -14,6 +14,17 @@ SEVERITY_RANK = {
 }
 
 
+def derive_merge_suggestion(findings) -> str:
+    severities = [f.severity.lower() if f.severity else "low" for f in findings]
+    if "critical" in severities:
+        return "建议修复 critical 及以上风险后再合并"
+    if "high" in severities:
+        return "建议修复 high 及以上风险后再合并"
+    if "medium" in severities:
+        return "建议 review medium 风险项，确认后合并"
+    return "可安全合并"
+
+
 @router.get("/tasks/{task_id}/report", response_model=ReportResponse)
 def get_report(task_id: int, db: Session = Depends(get_db)):
     """Get the review report for a task"""
@@ -37,19 +48,7 @@ def get_report(task_id: int, db: Session = Depends(get_db)):
     )
 
     # Derive merge_suggestion and focus points from findings
-    severities = [f.severity.lower() if f.severity else "low" for f in findings]
-    has_critical = "critical" in severities
-    has_high = "high" in severities
-    has_medium = "medium" in severities
-
-    if has_critical:
-        merge_suggestion = "建议修复 critical 及以上风险后再合并"
-    elif has_high:
-        merge_suggestion = "建议修复 high 及以上风险后再合并"
-    elif has_medium:
-        merge_suggestion = "建议 review medium 风险项，确认后合并"
-    else:
-        merge_suggestion = "可安全合并"
+    merge_suggestion = derive_merge_suggestion(findings)
 
     test_suggestions = [
         f.suggestion for f in findings
@@ -207,7 +206,7 @@ def preview_comment(task_id: int, db: Session = Depends(get_db)):
 
     report = Report(
         risk_level=task.risk_level or "LOW",
-        merge_suggestion="",
+        merge_suggestion=derive_merge_suggestion(findings),
         markdown_summary=task.summary or "",
         findings_by_severity=by_severity,
     )
