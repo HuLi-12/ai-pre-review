@@ -16,7 +16,7 @@ class Settings(BaseSettings):
     database_url: str = "sqlite:///./ai_review.db"
     host: str = "0.0.0.0"
     port: int = 8000
-    debug: bool = True
+    debug: bool = False
 
 
 settings = Settings()

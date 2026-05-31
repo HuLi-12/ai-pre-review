@@ -8,6 +8,14 @@ API_ENDPOINT_PATTERN = (
     r'@(?:Post|Get|Put|Delete|Patch|RequestMapping)\b|'
     r'@\s*(?:app|router|api|[\w_]*router)\.(?:get|post|put|delete|patch|route)\s*\('
 )
+AUTH_SIGNAL_PATTERN = (
+    r'@(?:PreAuthorize|Secured|RolesAllowed|RequireAuth|require_auth)\b|'
+    r'Depends\s*\(\s*get_current_user|'
+    r'Security\s*\(|'
+    r'\bcurrent_user\b|'
+    r'\bauth(?:orization)?\b|'
+    r'\bpermission\b'
+)
 DOCUMENTATION_EXTENSIONS = (".md", ".markdown", ".rst", ".txt", ".adoc")
 
 
@@ -129,6 +137,9 @@ class StaticScanner:
                 continue
             if rule.rule_id == "S006":
                 continue  # Skip S006 for static, handled by AI
+            if rule.rule_id == "S008":
+                self._check_missing_auth(file_path, added_lines, findings)
+                continue
             if rule.rule_id == "S009":
                 self._check_missing_validation(file_path, added_lines, findings)
                 continue
@@ -238,6 +249,32 @@ class StaticScanner:
                 line_content=added_lines[[x["new_line"] for x in added_lines].index(api_line)]["content"]
                     if api_line in [x["new_line"] for x in added_lines] else "",
             ))
+
+    def _check_missing_auth(self, file_path: str, added_lines: list, findings: List[RuleFinding]):
+        """Check if a new API endpoint has nearby authentication signals."""
+        api_line_item = None
+        for item in added_lines:
+            if re.search(API_ENDPOINT_PATTERN, item["content"], re.IGNORECASE):
+                api_line_item = item
+                break
+
+        if not api_line_item:
+            return
+
+        api_line = api_line_item["new_line"]
+        for item in added_lines:
+            if abs(item["new_line"] - api_line) <= 10:
+                if re.search(AUTH_SIGNAL_PATTERN, item["content"], re.IGNORECASE):
+                    return
+
+        findings.append(RuleFinding(
+            file_path=file_path,
+            line_number=api_line,
+            rule_id="S008",
+            severity="high",
+            message="New API method may be missing authentication/authorization",
+            line_content=api_line_item["content"],
+        ))
 
     def _check_method_length_on_patch(self, file_path: str, full_content: str,
                                        patch: str, findings: List[RuleFinding]):

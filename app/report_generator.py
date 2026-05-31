@@ -15,6 +15,8 @@ class Report:
 class ReportGenerator:
     """Generate structured review reports from merged findings."""
 
+    COMMENT_MARKER = "<!-- ai-review-cockpit-comment -->"
+
     def generate(self, summary: dict, findings: List[dict]) -> Report:
         """Generate a complete review report"""
         report = Report()
@@ -132,7 +134,7 @@ class ReportGenerator:
     @staticmethod
     def generate_github_comment(report: Report) -> str:
         """Generate a concise GitHub PR comment (high-confidence findings only)."""
-        parts = []
+        parts = [ReportGenerator.COMMENT_MARKER]
         parts.append("## 🤖 AI Review Cockpit\n")
 
         total = sum(len(v) for v in report.findings_by_severity.values())

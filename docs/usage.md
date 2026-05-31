@@ -98,6 +98,8 @@ FETCHING_PR
 
 Golden Evaluation 是本项目的质量评测集，用固定 PR/diff 样例衡量系统是否能正确发现问题，并控制误报。
 
+评测边界需要明确：这里的 deterministic evaluation 主要衡量静态规则检测、去重、置信度门控和 GitHub-ready gating，不直接调用 LLM，因此不代表完整语义 AI Review 的全部质量。LLM 语义审查效果应结合真实 PR demo 和人工复核一起展示。
+
 ### 查看页面
 
 打开：

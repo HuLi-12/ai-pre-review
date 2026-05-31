@@ -124,6 +124,8 @@ class ReviewEngine:
             if task.auto_comment and merged:
                 try:
                     comment = self.report_gen.generate_github_comment(report)
+                    if not task.comment_id:
+                        task.comment_id = self._find_reusable_comment_id(task, db)
                     if task.comment_id:
                         ok = self.github.update_pr_comment(owner, repo, task.comment_id, comment)
                         task.current_step = "COMMENT_UPDATED" if ok else "COMMENT_FAILED"
@@ -152,6 +154,20 @@ class ReviewEngine:
         task.progress = progress
         task.current_step = step
         db.commit()
+
+    @staticmethod
+    def _find_reusable_comment_id(task: PRReviewTask, db: Session) -> Optional[int]:
+        previous = (
+            db.query(PRReviewTask)
+            .filter(PRReviewTask.repo_owner == task.repo_owner)
+            .filter(PRReviewTask.repo_name == task.repo_name)
+            .filter(PRReviewTask.pr_number == task.pr_number)
+            .filter(PRReviewTask.comment_id.isnot(None))
+            .filter(PRReviewTask.id != task.id)
+            .order_by(PRReviewTask.updated_at.desc(), PRReviewTask.id.desc())
+            .first()
+        )
+        return previous.comment_id if previous else None
 
     def _save_changed_files(self, task_id: int, files: List[ChangedFile], db: Session):
         """Save changed files and build file_path -> file_id mapping."""

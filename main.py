@@ -1,4 +1,5 @@
 import uvicorn
+from functools import lru_cache
 from contextlib import asynccontextmanager
 from fastapi import FastAPI, Request
 from fastapi.responses import HTMLResponse, RedirectResponse
@@ -40,19 +41,29 @@ import json
 templates.env.filters["from_json"] = lambda s: json.loads(s) if s else []
 
 
+@lru_cache(maxsize=1)
+def cached_golden_evaluation():
+    return run_golden_evaluation()
+
+
+@lru_cache(maxsize=1)
+def cached_real_pr_replay_evaluation():
+    return run_real_pr_replay_evaluation()
+
+
 @app.get("/", response_class=HTMLResponse)
 def index(request: Request):
     return templates.TemplateResponse("index.html", {
         "request": request,
-        "golden_eval": run_golden_evaluation(),
-        "real_pr_replay": run_real_pr_replay_evaluation(),
+        "golden_eval": cached_golden_evaluation(),
+        "real_pr_replay": cached_real_pr_replay_evaluation(),
     })
 
 
 @app.get("/evaluation", response_class=HTMLResponse)
 def evaluation_page(request: Request):
-    report = run_golden_evaluation()
-    real_pr_report = run_real_pr_replay_evaluation()
+    report = cached_golden_evaluation()
+    real_pr_report = cached_real_pr_replay_evaluation()
     ordinary_baseline_count = report.expected_total + report.false_positive_count
     gate_filtered_count = max(0, ordinary_baseline_count - report.visible_expected_count)
     return templates.TemplateResponse("evaluation.html", {

@@ -1,4 +1,6 @@
 from app.review_engine import ReviewEngine
+from app.database import SessionLocal
+from app.models import PRReviewTask
 from app.static_scanner import RuleFinding
 
 
@@ -43,3 +45,32 @@ def test_static_rule_merge_preserves_code_snippet_for_evidence():
     assert len(merged) == 1
     assert merged[0]["line_content"] == 'password = "secret123"'
     assert merged[0]["confidence_reason"] == "Deterministic static rule match with changed-line evidence"
+
+
+def test_review_engine_reuses_latest_comment_id_for_same_pr():
+    db = SessionLocal()
+    try:
+        old_task = PRReviewTask(
+            repo_owner="comment-reuse",
+            repo_name="repo",
+            pr_number=42,
+            pr_url="https://github.com/comment-reuse/repo/pull/42",
+            status="DONE",
+            comment_id=98765,
+        )
+        new_task = PRReviewTask(
+            repo_owner="comment-reuse",
+            repo_name="repo",
+            pr_number=42,
+            pr_url="https://github.com/comment-reuse/repo/pull/42",
+            status="PENDING",
+        )
+        db.add(old_task)
+        db.add(new_task)
+        db.commit()
+
+        engine = ReviewEngine.__new__(ReviewEngine)
+
+        assert engine._find_reusable_comment_id(new_task, db) == 98765
+    finally:
+        db.close()
