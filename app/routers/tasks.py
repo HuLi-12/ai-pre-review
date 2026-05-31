@@ -64,7 +64,10 @@ async def _run_review_async(task_id: int, github_token: Optional[str]):
             task = db.query(PRReviewTask).filter(PRReviewTask.id == task_id).first()
             if task:
                 task.status = "FAILED"
-                task.error_message = str(e)
+                if not task.error_type:
+                    task.error_type = "INTERNAL_ERROR"
+                if not task.error_message:
+                    task.error_message = str(e)[:500]
                 db.commit()
         except Exception:
             pass
@@ -83,4 +86,8 @@ def get_task(task_id: int, db: Session = Depends(get_db)):
         status=task.status,
         progress=task.progress,
         current_step=task.current_step,
+        error_type=task.error_type,
+        error_message=task.error_message,
+        fallback_flags=task.fallback_flags,
+        pipeline_details=task.pipeline_details,
     )

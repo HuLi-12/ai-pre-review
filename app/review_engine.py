@@ -1,8 +1,10 @@
 import asyncio
+import json
 import re
 from typing import List, Optional, Dict, Any, Set
 from dataclasses import dataclass, field
 
+import httpx
 from sqlalchemy.orm import Session
 
 from app.github_client import GitHubClient, ChangedFile, PRInfo
@@ -49,6 +51,8 @@ class ReviewEngine:
         """Execute full review pipeline"""
         result = ReviewResult()
         owner, repo, number = task.repo_owner, task.repo_name, task.pr_number
+        fallbacks = {}
+        pipeline_stages = []
 
         try:
             # ---- Stage 1: Fetch PR Info ----
@@ -56,6 +60,10 @@ class ReviewEngine:
             pr_info = self.github.get_pr_info(owner, repo, number)
             changed_files = self.github.get_changed_files(owner, repo, number, head_sha=pr_info.commit_sha)
             task.commit_sha = pr_info.commit_sha
+
+            pipeline_stages.append("FETCHING_PR")
+            if "public diff fallback" in (pr_info.description or "").lower():
+                fallbacks["public_diff"] = True
 
             # Save changed files to DB
             self._save_changed_files(task.id, changed_files, db)
@@ -74,24 +82,31 @@ class ReviewEngine:
             await self._update_progress(task, db, "STATIC_SCAN", 30)
             rule_findings = self._run_static_scan(changed_files)
             self._changed_line_index = self._build_changed_line_index(changed_files)
+            pipeline_stages.append("STATIC_SCAN")
 
             # ---- Stage 4: Risk Scoring & AI Review ----
             await self._update_progress(task, db, "AI_PR_SUMMARY", 40)
             summary = await self._summarize_pr(pr_info, changed_files)
+            pipeline_stages.append("AI_PR_SUMMARY")
+            if summary.get("one_line_summary", "").startswith("AI summary unavailable"):
+                fallbacks["ai_summary"] = True
 
             # File-level analysis with risk-based prioritization
             await self._update_progress(task, db, "AI_FILE_REVIEW", 55)
             file_findings = await self._review_files_prioritized(
                 changed_files, review_context, rule_findings
             )
+            pipeline_stages.append("AI_FILE_REVIEW")
 
             # Cross-file analysis (only if enough files changed)
             await self._update_progress(task, db, "AI_CROSS_FILE", 70)
             cross_findings = await self._cross_file_analysis(changed_files, review_context, file_findings)
+            pipeline_stages.append("AI_CROSS_FILE")
 
             # ---- Stage 5: Merge, Dedup & Confidence ----
             await self._update_progress(task, db, "MERGING_RESULTS", 85)
             merged = self._merge_findings(file_findings, cross_findings, rule_findings)
+            pipeline_stages.append("MERGING_RESULTS")
 
             # Persist real pipeline metrics
             counts = getattr(self, '_pipeline_counts', {})
@@ -104,6 +119,7 @@ class ReviewEngine:
             # ---- Stage 6: Generate Report ----
             await self._update_progress(task, db, "GENERATING_REPORT", 95)
             report = self.report_gen.generate(summary, merged)
+            pipeline_stages.append("GENERATING_REPORT")
 
             # Save findings to DB
             self._save_findings(task.id, merged, db)
@@ -125,6 +141,9 @@ class ReviewEngine:
 
             task.summary = report.markdown_summary
             task.risk_level = report.risk_level
+            pipeline_stages.append("DONE")
+            task.fallback_flags = json.dumps(fallbacks) if fallbacks else None
+            task.pipeline_details = json.dumps(pipeline_stages) if pipeline_stages else None
             db.commit()
 
             # ---- Stage 7: Auto Comment to GitHub (if enabled) ----
@@ -161,7 +180,13 @@ class ReviewEngine:
 
         except Exception as e:
             task.status = "FAILED"
-            task.error_message = str(e)
+            task.error_type = self._categorize_error(e, task.current_step)
+            task.error_message = str(e)[:500]
+            if fallbacks:
+                task.fallback_flags = json.dumps(fallbacks)
+            if pipeline_stages:
+                pipeline_stages.append(f"FAILED:{task.error_type}")
+                task.pipeline_details = json.dumps(pipeline_stages)
             db.commit()
             raise
 
@@ -173,6 +198,30 @@ class ReviewEngine:
         task.progress = progress
         task.current_step = step
         db.commit()
+
+    @staticmethod
+    def _categorize_error(error: Exception, step: Optional[str]) -> str:
+        """Categorize an exception into a stable error type for task.error_type."""
+        if isinstance(error, httpx.TimeoutException):
+            return "NETWORK_TIMEOUT"
+        if isinstance(error, httpx.ConnectError):
+            return "NETWORK_ERROR"
+        if isinstance(error, httpx.HTTPStatusError):
+            status = error.response.status_code
+            if status == 401:
+                return "GITHUB_AUTH_ERROR"
+            if status == 403:
+                return "GITHUB_RATE_LIMIT"
+            if status == 404:
+                return "GITHUB_NOT_FOUND"
+            return "GITHUB_API_ERROR"
+        if isinstance(error, httpx.RequestError):
+            return "NETWORK_ERROR"
+        if isinstance(error, ValueError):
+            return "VALIDATION_ERROR"
+        if step and step.startswith("AI_"):
+            return "AI_PROVIDER_ERROR"
+        return "INTERNAL_ERROR"
 
     @staticmethod
     def _find_reusable_comment_id(task: PRReviewTask, db: Session) -> Optional[int]:

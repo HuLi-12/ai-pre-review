@@ -16,6 +16,10 @@ class TaskResponse(BaseModel):
     status: str
     progress: Optional[int] = 0
     current_step: Optional[str] = None
+    error_type: Optional[str] = None
+    error_message: Optional[str] = None
+    fallback_flags: Optional[str] = None
+    pipeline_details: Optional[str] = None
 
 
 class FindingItem(BaseModel):
