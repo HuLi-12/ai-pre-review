@@ -23,7 +23,7 @@ def calculate_confidence(finding: dict, has_rule_match: bool = False) -> float:
     source = finding.get("source", "ai_file")
 
     # Rule-specific overrides for deterministic high-risk rules
-    rule_id = finding.get("type", "")
+    rule_id = finding.get("rule_id") or finding.get("type", "")
     severity = finding.get("severity", "")
     if source == "static_rule":
         if rule_id in ("S005", "S014"):

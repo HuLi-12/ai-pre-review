@@ -1,19 +1,40 @@
 {% extends "base.html" %}
-{% block title %}规则说明 - AI Review Cockpit{% endblock %}
-{% block content %}
-<h4 class="mb-4"><i class="bi bi-shield-check"></i> 静态规则说明</h4>
+{% block title %}Static Rules - AI Review Cockpit{% endblock %}
 
-<div class="row mb-4">
-    <div class="col-12">
-        <div class="card">
-            <div class="card-body">
-                <p class="mb-2">本工具使用 <strong>15 条静态规则 (S001-S015)</strong> 对 PR 变更进行自动扫描。</p>
-                <ul class="mb-0">
-                    <li><strong>静态规则</strong> — 基于正则匹配，只扫描 patch 中的新增行，避免误报已有代码</li>
-                    <li><strong>AI 检测</strong> — 通过 LLM 进行语义分析，检测模式无法覆盖的复杂问题</li>
-                    <li><strong>混合检测</strong> — 静态规则 + AI 同时命中时，置信度加分，结果更可靠</li>
-                    <li>扫描结果经过 <strong>签名去重</strong> 和 <strong>置信度过滤</strong> 后展示</li>
-                </ul>
+{% block content %}
+<div class="mb-4">
+    <h1 class="h3 fw-bold mb-2"><i class="bi bi-shield-check"></i> Static Rules</h1>
+    <p class="mb-0" style="color: var(--cockpit-muted); max-width: 820px;">
+        静态规则库用于捕获确定性、高置信的问题，不代表 AI Review Cockpit 的全部 Review 能力。
+        AI Review 还会补充语义问题、上下文问题和跨文件一致性问题。
+    </p>
+</div>
+
+<div class="cockpit-card p-4 mb-4">
+    <h5 class="fw-semibold mb-3">Rules are evidence, not limits</h5>
+    <div class="row g-3">
+        <div class="col-md-4">
+            <div class="p-3 rounded h-100 bg-cockpit-subtle">
+                <div class="fw-semibold mb-1">Static Rule</div>
+                <div class="small" style="color: var(--cockpit-muted);">
+                    S001-S015 负责确定性信号，例如硬编码密钥、危险 SQL、空 catch、缺少测试等。
+                </div>
+            </div>
+        </div>
+        <div class="col-md-4">
+            <div class="p-3 rounded h-100 bg-cockpit-subtle">
+                <div class="fw-semibold mb-1">AI File Review</div>
+                <div class="small" style="color: var(--cockpit-muted);">
+                    不需要绑定规则 ID，可输出 correctness、security、reliability、test 等语义 finding。
+                </div>
+            </div>
+        </div>
+        <div class="col-md-4">
+            <div class="p-3 rounded h-100 bg-cockpit-subtle">
+                <div class="fw-semibold mb-1">AI Cross-file Review</div>
+                <div class="small" style="color: var(--cockpit-muted);">
+                    关注 api_contract、data_flow、data_consistency、architecture 等跨文件问题。
+                </div>
             </div>
         </div>
     </div>
@@ -22,18 +43,18 @@
 <div class="row g-3">
     {% for rule in rules %}
     <div class="col-md-6">
-        <div class="card h-100">
-            <div class="card-header d-flex justify-content-between align-items-center">
+        <div class="cockpit-card h-100">
+            <div class="p-3 d-flex justify-content-between align-items-center" style="border-bottom: 1px solid var(--cockpit-border);">
                 <span>
                     <strong>{{ rule.id }}</strong>
                     <span class="ms-2 text-muted small">{{ rule.name }}</span>
                 </span>
                 <span class="badge {% if rule.severity == 'critical' %}bg-danger{% elif rule.severity == 'high' %}bg-warning text-dark{% elif rule.severity == 'medium' %}bg-info text-dark{% else %}bg-secondary{% endif %}">
-                    {% if rule.severity == 'critical' %}严重{% elif rule.severity == 'high' %}高{% elif rule.severity == 'medium' %}中{% else %}低{% endif %}
+                    {{ rule.severity }}
                 </span>
             </div>
-            <div class="card-body">
-                <p class="card-text">{{ rule.description }}</p>
+            <div class="p-3">
+                <p class="small" style="color: var(--cockpit-muted);">{{ rule.description }}</p>
                 {% if rule.bad_code %}
                 <div class="mb-2">
                     <small class="text-danger fw-bold">反例</small>
@@ -47,25 +68,19 @@
                 </div>
                 {% endif %}
             </div>
-            <div class="card-footer d-flex justify-content-between align-items-center">
+            <div class="p-3 d-flex justify-content-between align-items-center" style="border-top: 1px solid var(--cockpit-border);">
                 <small class="text-muted">
-                    {% if rule.detection == "static" %}
-                    <span class="badge bg-secondary">静态规则</span>
-                    {% elif rule.detection == "ai" %}
-                    <span class="badge bg-primary">AI 检测</span>
-                    {% else %}
-                    <span class="badge bg-success">混合检测</span>
-                    {% endif %}
+                    <span class="badge bg-secondary">Static Rule</span>
                 </small>
                 <small class="text-muted">
                     {% if rule.id in ("S005", "S014") %}
-                    置信度: <strong>0.85</strong> (确定性规则)
+                    baseline confidence <strong>0.85</strong>
                     {% elif rule.severity == "critical" %}
-                    置信度: 0.75
+                    baseline confidence 0.75
                     {% elif rule.severity == "high" %}
-                    置信度: 0.65
+                    baseline confidence 0.65
                     {% else %}
-                    置信度: 0.45
+                    evidence signal
                     {% endif %}
                 </small>
             </div>

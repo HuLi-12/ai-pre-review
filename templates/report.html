@@ -201,6 +201,13 @@
                              data-file-path="{{ f.file_path }}"
                              data-finding-id="{{ f.id }}"
                              style="border: 1px solid var(--cockpit-border); background: rgba(248,250,252,0.7);">
+                        {% set evidence_items = f.evidence_json | default('[]') | from_json %}
+                        {% set source_badge = namespace(text='') %}
+                        {% for ev in evidence_items %}
+                            {% if ev.type == 'review_source' %}
+                                {% set source_badge.text = ev.content %}
+                            {% endif %}
+                        {% endfor %}
                         <div class="d-flex justify-content-between align-items-start gap-3">
                             <div>
                                 <h6 class="mb-1">
@@ -209,6 +216,9 @@
                                 </h6>
                                 <div class="small" style="color: var(--cockpit-muted);">
                                     <code class="file-path-label">{{ f.file_path }}</code>{% if f.line_number %}:{{ f.line_number }}{% endif %}
+                                    {% if source_badge.text %}
+                                    <span class="badge bg-primary bg-opacity-10 text-primary border border-primary border-opacity-25 ms-2">{{ source_badge.text }}</span>
+                                    {% endif %}
                                     {% if f.finding_type %} · {{ f.finding_type }}{% endif %}
                                 </div>
                             </div>

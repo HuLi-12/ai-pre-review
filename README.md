@@ -2,6 +2,23 @@
 
 不只是又一个 AI 代码审查工具。我们分析变更行、计算文件风险、结合静态规则与 AI 推理，只展示**有证据和置信度**的发现。
 
+## Positioning: rules are evidence, not limits
+
+AI Review Cockpit does not force every review finding into S001-S015.
+Static Rules capture deterministic, high-confidence evidence; AI File Review and
+AI Cross-file Review provide open semantic judgment for correctness, reliability,
+API contract, data flow, architecture, and context issues that fixed rules cannot
+exhaustively enumerate.
+
+Final findings are normalized through Evidence Chain and Confidence Gate:
+
+- `static_rule`: deterministic signals such as S005 hardcoded secrets or S014 unsafe SQL.
+- `ai_file`: single-file semantic findings with `rule_id = null` and a category such as correctness or reliability.
+- `ai_cross`: cross-file consistency findings with `rule_id = null` and a category such as api_contract or data_consistency.
+
+Golden Evaluation measures the stability of Static Rules and confidence gating.
+AI semantic review is validated through real PR replay and manual inspection.
+
 [![CI](https://github.com/HuLi-12/ai-pre-review/actions/workflows/ci.yml/badge.svg)](https://github.com/HuLi-12/ai-pre-review/actions/workflows/ci.yml)
 
 ---

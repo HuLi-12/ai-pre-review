@@ -49,6 +49,18 @@ def test_static_pages_render():
         assert client.get("/rules").status_code == 200
 
 
+def test_rules_page_presents_static_rules_as_evidence_not_limits():
+    with TestClient(app) as client:
+        response = client.get("/rules")
+
+    assert response.status_code == 200
+    assert "Static Rules" in response.text
+    assert "Rules are evidence, not limits" in response.text
+    assert "不代表 AI Review Cockpit 的全部 Review 能力" in response.text
+    assert "AI File Review" in response.text
+    assert "AI Cross-file Review" in response.text
+
+
 def test_task_history_pr_main_link_points_to_internal_report():
     db = SessionLocal()
     try:
@@ -301,3 +313,64 @@ def test_report_page_shows_high_findings_and_collapses_medium_low_by_default():
     assert "return user.name" in response.text
     assert "Confidence Reason" in response.text
     assert "AI finding anchored to changed-line evidence" in response.text
+
+
+def test_report_page_distinguishes_static_and_ai_finding_sources():
+    db = SessionLocal()
+    try:
+        task = PRReviewTask(
+            repo_owner="demo",
+            repo_name="repo",
+            pr_number=406,
+            pr_url="https://github.com/demo/repo/pull/406",
+            status="DONE",
+            risk_level="HIGH",
+            raw_finding_count=2,
+            deduped_finding_count=2,
+            visible_finding_count=2,
+            github_ready_count=1,
+        )
+        db.add(task)
+        db.commit()
+        static_finding = PRReviewFinding(
+            task_id=task.id,
+            file_path="app/auth.py",
+            line_number=12,
+            finding_type="S005",
+            severity="critical",
+            title="Hardcoded password or secret detected",
+            reason="A deterministic static rule matched a changed line.",
+            suggestion="Move the secret to environment variables.",
+            confidence=0.85,
+            evidence_json=json.dumps([
+                {"type": "review_source", "label": "Review Source", "content": "Static Rule S005"},
+                {"type": "rule_match", "label": "Static Rule", "content": "S005"},
+            ]),
+        )
+        ai_finding = PRReviewFinding(
+            task_id=task.id,
+            file_path="app/order_service.py",
+            line_number=87,
+            finding_type="correctness",
+            severity="high",
+            title="Order status update lacks transaction protection",
+            reason="The AI semantic review found a transaction boundary risk.",
+            suggestion="Put both updates in one transaction.",
+            confidence=0.72,
+            evidence_json=json.dumps([
+                {"type": "review_source", "label": "Review Source", "content": "AI File Review correctness"},
+                {"type": "ai_source", "label": "AI Source", "content": "ai_file"},
+            ]),
+        )
+        db.add_all([static_finding, ai_finding])
+        db.commit()
+        task_id = task.id
+    finally:
+        db.close()
+
+    with TestClient(app) as client:
+        response = client.get(f"/tasks/{task_id}/report")
+
+    assert response.status_code == 200
+    assert "Static Rule S005" in response.text
+    assert "AI File Review correctness" in response.text

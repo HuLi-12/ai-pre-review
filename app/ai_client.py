@@ -87,6 +87,10 @@ Focus on:
 Output requirements:
 - Must output valid JSON
 - Each finding must include: file, line, severity, title, reason, suggestion, confidence
+- You are not limited to the static rule IDs. Static rules are deterministic signals; your job is to identify semantic and contextual review risks that may not match any predefined rule.
+- Use source = ai_file and rule_id = null unless the finding is directly confirmed by a static rule.
+- Use category such as correctness, security, performance, reliability, test, maintainability, architecture, api_contract, or data_consistency.
+- Do not force-fit a finding into S001-S015.
 - Only output issues with clear evidence
 - Do NOT output generic code style advice
 - Low confidence issues should use note level, not blocking
@@ -96,6 +100,9 @@ Output JSON format:
   "file_summary": "<one sentence about this file>",
   "findings": [
     {
+      "source": "ai_file",
+      "rule_id": null,
+      "category": "correctness|security|performance|reliability|test|maintainability",
       "file": "<file_path>",
       "line": <line_number>,
       "type": "correctness|security|performance|maintainability|test",
@@ -110,6 +117,9 @@ Output JSON format:
 
     CROSS_FILE_SYSTEM_PROMPT = """You are a senior architect. Analyze whether there are consistency issues across multiple files in this PR.
 
+You are not limited to the static rule IDs. Static rules are deterministic signals, but your task is to identify semantic, contextual, and cross-file review risks that may not match any predefined rule.
+For each finding, use source = ai_cross, rule_id = null, and a category such as architecture, api_contract, data_flow, data_consistency, reliability, or test. Do not force-fit a finding into S001-S015.
+
 Focus areas:
 1. API parameter/return type changes — are callers updated accordingly?
 2. DTO/VO/DO field changes — are database, Mapper, and frontend consistent?
@@ -122,6 +132,9 @@ Output JSON format:
 {
   "findings": [
     {
+      "source": "ai_cross",
+      "rule_id": null,
+      "category": "architecture|api_contract|data_flow|data_consistency|reliability|test",
       "title": "<issue title>",
       "severity": "critical|high|medium|low",
       "files_involved": ["<file_path>", ...],

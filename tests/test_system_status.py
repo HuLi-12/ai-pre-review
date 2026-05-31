@@ -2,6 +2,7 @@ from fastapi.testclient import TestClient
 
 from config import settings
 from main import app
+from app.ai_client import AIClient
 
 
 def test_system_status_exposes_safe_runtime_configuration(monkeypatch):
@@ -59,3 +60,14 @@ def test_home_page_keeps_ai_runtime_status_out_of_primary_entry(monkeypatch):
     assert "AI Runtime" not in home_response.text
     assert "deepseek-v4-flash" not in home_response.text
     assert status_response.json()["ai"]["model"] == "deepseek-v4-flash"
+
+
+def test_ai_prompts_do_not_force_fit_findings_to_static_rules():
+    prompt = AIClient.FILE_REVIEW_SYSTEM_PROMPT + AIClient.CROSS_FILE_SYSTEM_PROMPT
+
+    assert "You are not limited to the static rule IDs" in prompt
+    assert "Do not force-fit a finding into S001-S015" in prompt
+    assert '"source": "ai_file"' in prompt
+    assert '"source": "ai_cross"' in prompt
+    assert '"rule_id": null' in prompt
+    assert '"category"' in prompt

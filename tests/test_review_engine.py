@@ -97,6 +97,9 @@ def test_ai_file_finding_near_changed_line_gets_evidence_bonus():
 
     assert len(merged) == 1
     assert merged[0]["changed_line_evidence"] is True
+    assert merged[0]["source"] == "ai_file"
+    assert merged[0]["rule_id"] is None
+    assert merged[0]["category"] == "correctness"
     assert merged[0]["line_content"] == "return user.name"
     assert merged[0]["model_confidence"] == 1.0
     assert "changed-line evidence" in merged[0]["confidence_reason"]
@@ -164,8 +167,58 @@ def test_ai_file_finding_normalization_trims_text_and_lowercases_severity():
     assert merged[0]["line"] == 42
     assert merged[0]["severity"] == "high"
     assert merged[0]["title"] == "Missing null check"
+    assert merged[0]["type"] == "correctness"
+    assert merged[0]["category"] == "correctness"
+    assert merged[0]["rule_id"] is None
     assert merged[0]["model_confidence"] == 0.0
     assert engine._pipeline_counts["invalid"] == 0
+
+
+def test_static_rule_finding_carries_rule_source_metadata():
+    engine = ReviewEngine.__new__(ReviewEngine)
+    findings = {
+        "app/auth.py": [
+            RuleFinding(
+                file_path="app/auth.py",
+                line_number=12,
+                rule_id="S005",
+                severity="critical",
+                message="Hardcoded password or secret detected",
+                line_content='password = "secret123"',
+            )
+        ]
+    }
+
+    merged = engine._merge_findings([], [], findings)
+
+    assert len(merged) == 1
+    assert merged[0]["source"] == "static_rule"
+    assert merged[0]["rule_id"] == "S005"
+    assert merged[0]["category"] == "security"
+    assert merged[0]["type"] == "S005"
+
+
+def test_cross_file_finding_carries_open_ai_source_metadata():
+    engine = ReviewEngine.__new__(ReviewEngine)
+    cross_findings = [
+        {
+            "files_involved": ["api.py", "client.py"],
+            "category": "api_contract",
+            "severity": "medium",
+            "title": "Response contract changed without caller update",
+            "reason": "The response adds a required field but the caller fixture was not updated.",
+            "suggestion": "Update the caller and add a contract regression test.",
+            "confidence": 0.78,
+        }
+    ]
+
+    merged = engine._merge_findings([], cross_findings, {})
+
+    assert len(merged) == 1
+    assert merged[0]["source"] == "ai_cross"
+    assert merged[0]["rule_id"] is None
+    assert merged[0]["category"] == "api_contract"
+    assert merged[0]["type"] == "api_contract"
 
 
 def test_review_engine_reuses_latest_comment_id_for_same_pr():

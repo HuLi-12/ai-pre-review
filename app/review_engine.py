@@ -287,6 +287,14 @@ class ReviewEngine:
                     confidence = 0.0
             file_path = f.get("file", "")
             source = f.get("source", "ai_file")
+            rule_id = f.get("rule_id") or (f.get("type") if source == "static_rule" else None)
+            category = f.get("category") or (None if source == "static_rule" else f.get("type", source))
+            if source == "static_rule":
+                review_source = f"Static Rule {rule_id}"
+            elif source == "ai_cross":
+                review_source = f"AI Cross-file Review {category}"
+            else:
+                review_source = f"AI File Review {category}"
 
             # Build evidence chain
             evidence = []
@@ -294,6 +302,11 @@ class ReviewEngine:
                 "type": "changed_file",
                 "label": "Changed File",
                 "content": file_path,
+            })
+            evidence.append({
+                "type": "review_source",
+                "label": "Review Source",
+                "content": review_source,
             })
             if f.get("line"):
                 evidence.append({
@@ -307,12 +320,12 @@ class ReviewEngine:
                     "label": "Code",
                     "content": f.get("line_content", "")[:240],
                 })
-            finding_type = f.get("type", "") or source
-            if finding_type and finding_type.startswith("S"):
+            finding_type = rule_id if source == "static_rule" else (category or source)
+            if source == "static_rule" and rule_id:
                 evidence.append({
                     "type": "rule_match",
                     "label": "Static Rule",
-                    "content": f"{finding_type}: {f.get('title', '')}",
+                    "content": f"{rule_id}: {f.get('title', '')}",
                 })
             else:
                 evidence.append({
@@ -546,6 +559,18 @@ class ReviewEngine:
         return f"{file_path}:{issue_type}:{line_bucket}:{title[:20]}"
 
     @staticmethod
+    def _category_for_static_rule(rule_id: str) -> str:
+        if rule_id in {"S004", "S005", "S008", "S014"}:
+            return "security"
+        if rule_id in {"S006", "S009", "S010", "S013"}:
+            return "correctness"
+        if rule_id in {"S011", "S012"}:
+            return "performance"
+        if rule_id == "S015":
+            return "test"
+        return "maintainability"
+
+    @staticmethod
     def _build_changed_line_index(changed_files: List[ChangedFile]) -> Dict[str, Dict[int, str]]:
         """Build file -> added line -> content index for AI evidence anchoring."""
         index: Dict[str, Dict[int, str]] = {}
@@ -603,9 +628,15 @@ class ReviewEngine:
             return None
 
         normalized = dict(finding)
+        category = str(finding.get("category") or finding.get("type", "")).strip().lower()
+        if not category or category.startswith("s0"):
+            category = "correctness"
         normalized.update({
             "file": file_path,
             "line": line,
+            "type": category,
+            "category": category,
+            "rule_id": None,
             "severity": severity,
             "title": title,
             "reason": reason,
@@ -665,6 +696,8 @@ class ReviewEngine:
                     "file": file_path,
                     "line": rf.line_number,
                     "type": rf.rule_id,
+                    "rule_id": rf.rule_id,
+                    "category": self._category_for_static_rule(rf.rule_id),
                     "severity": rf.severity,
                     "title": rf.message,
                     "reason": rf.message,
@@ -687,9 +720,13 @@ class ReviewEngine:
 
         # Add cross-file findings
         for fd in cross_findings:
+            fd = dict(fd)
             files_involved = fd.get("files_involved", [])
             fd["file"] = ", ".join(files_involved) if isinstance(files_involved, list) else str(files_involved)
             fd["source"] = "ai_cross"
+            fd["rule_id"] = None
+            fd["category"] = str(fd.get("category") or fd.get("type") or "architecture").strip().lower()
+            fd["type"] = fd["category"]
             merged.append(fd)
 
         # ---- Signature-based dedup ----
