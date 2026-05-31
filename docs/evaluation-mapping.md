@@ -10,7 +10,7 @@
 |------|------|------|
 | 首页 | 产品导向的着陆页，包含 Hero、功能卡片、流水线预览 | `templates/index.html`、`main.py:37-39` |
 | 任务进度 | 实时轮询进度条，包含阶段清单和文件风险条 | `templates/task_progress.html` |
-| 报告驾驶舱 | 四个指标卡片、文件风险地图、流水线条、评审决策卡片 | `templates/report.html` |
+| 报告Cockpit | 四个指标卡片、文件风险地图、流水线条、评审决策卡片 | `templates/report.html` |
 | 证据链 | 每个发现的结构化证据轨迹，展示来源→置信度链条 | `templates/report.html`（发现卡片） |
 | 规则页面 | 静态规则参考页，每条规则包含代码示例（好/坏） | `templates/rules.html`、`main.py:80-97` |
 | 任务历史 | 分页任务列表，支持搜索、状态过滤、操作链接 | `templates/task_history.html`、`main.py:42-75` |
@@ -63,7 +63,7 @@
 | 混合规则 + AI | 15 条静态规则 + LLM 分析，重叠时给予同意加成 | `app/review_engine.py`、`app/static_scanner.py`、`app/ai_client.py` |
 | 置信度门禁 | 三层阈值：≥0.80 GitHub、0.60–0.79 报告、<0.60 隐藏 | `app/confidence_calculator.py` |
 | 证据链 | 每个发现的结构化 JSON，展示来源→置信度轨迹 | `app/review_engine.py`、`templates/report.html` |
-| 评审决策驾驶舱 | 报告设计为合并决策辅助工具，而非仅仅发现列表 | `templates/report.html`、`main.py:158-169` |
+| 评审决策Cockpit | 报告设计为合并决策辅助工具，而非仅仅发现列表 | `templates/report.html`、`main.py:158-169` |
 | 签名去重 | 多维度去重（文件 + 类型 + 行号桶 + 标题） | `app/review_engine.py:_merge_findings()` |
 
 ---
@@ -108,8 +108,8 @@
 | #7 | `feat/github-comment-idempotent` | GitHub 评论幂等更新 |
 | #8 | `feat/report-ui-optimization` | 报告页面交互优化 |
 | #9 | `feat/rules-explanation` | 静态规则说明页面（S001–S015） |
-| #10 | `feat/review-cockpit-home` | 产品着陆页，驾驶舱品牌 |
-| #11 | `feat/report-cockpit-dashboard` | 驾驶舱仪表盘，风险地图和流水线可视化 |
+| #10 | `feat/review-cockpit-home` | 产品着陆页，Cockpit品牌 |
+| #11 | `feat/report-cockpit-dashboard` | Cockpit仪表盘，风险地图和流水线可视化 |
 | #12 | `feat/evidence-chain` | 可解释性发现的结构化证据链 |
 | #13 | `prototype/shadcn-review-dashboard` | React + shadcn/ui 前端原型 |
 | #14 | `feat/real-cockpit-metrics` | 数据库中真实流水线指标持久化 |
@@ -125,7 +125,7 @@
 
 | 维度 | 评分依据 |
 |------|---------|
-| 产品设计 | 6 个 UI 页面（首页、进度、报告、规则、历史、基础模板），一致的驾驶舱品牌 |
+| 产品设计 | 6 个 UI 页面（首页、进度、报告、规则、历史、基础模板），一致的Cockpit品牌 |
 | 功能完整性 | 从 PR 输入到 GitHub 评论的完整 7 阶段流水线，15 条规则 + AI |
 | 交互性 | 实时轮询、键盘快捷键、点击过滤、反馈系统 |
 | 创新性 | 变更行审查、风险感知路由、混合规则+AI、置信度门禁、证据链 |

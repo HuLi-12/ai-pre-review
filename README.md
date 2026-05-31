@@ -32,7 +32,7 @@ AI semantic review is validated through real PR replay and manual inspection.
 在首页输入 GitHub PR 地址。系统获取 diff、文件列表和提交元数据，然后启动 7 阶段分析流水线。
 
 ```
-首页 ─→ 进度页 ─→ 驾驶舱报告 ─→ (可选) GitHub 评论
+首页 ─→ 进度页 ─→ Cockpit 报告 ─→ (可选) GitHub 评论
 ```
 
 ### 2. 观察流水线
@@ -49,9 +49,9 @@ AI semantic review is validated through real PR replay and manual inspection.
 | 6 | AI_CROSS_FILE | 跨文件一致性检查（≥2 个文件） |
 | 7 | MERGING_RESULTS | 签名去重 + 置信度评分 + 阈值过滤 |
 
-### 3. 审查驾驶舱报告
+### 3. 审查 Cockpit 报告
 
-报告页面是一个**评审决策驾驶舱**，包含 5 个集成模块：
+报告页面是一个**评审决策 Cockpit**，包含 5 个集成模块：
 
 ```
 ┌──────────────────────────────────────────────────────────────┐
@@ -107,10 +107,22 @@ service.py     → 分数  4/15 → 普通审查（仅 patch + 摘要上下文�
 | 阈值 | 可见性 | 用途 |
 |------|--------|------|
 | ≥ 0.80 | GitHub 就绪 | 自动评论到 PR |
-| 0.60–0.79 | 仅报告 | 驾驶舱可见，不发布 |
+| 0.60–0.79 | 仅报告 | Cockpit 可见，不发布 |
 | < 0.60 | 隐藏 | 默认过滤 |
 
 置信度公式：`基础分 + 证据分 + 同意加成 - 不确定性扣减`
+
+### 三种 Finding Source
+
+发现不再强制归类到 S001-S015，而是按来源区分：
+
+| Source | 类型 | rule_id | category 示例 |
+|--------|------|---------|---------------|
+| **Static Rule** | 确定性信号 | `S005` | `security` |
+| **AI File Review** | 语义分析 | `null` | `correctness`, `reliability`, `test` |
+| **AI Cross-file Review** | 跨文件一致性 | `null` | `api_contract`, `data_flow`, `architecture` |
+
+报告页为每条 finding 显示来源徽章，Evidence Chain 也保留 `review_source` 元数据。
 
 ### 签名去重
 
@@ -121,15 +133,18 @@ service.py     → 分数  4/15 → 普通审查（仅 patch + 摘要上下文�
 每个发现附带结构化证据轨迹，精确说明被标记的原因：
 
 ```
-变更文件 → 行号 → 规则匹配 / AI 来源 → 置信度门禁
+变更文件 → Review Source → 行号 → 规则匹配 / AI 来源 → 置信度门禁
 ```
 
 示例：
 ```
-user_service.py → 第 42 行 → S005 hardcoded_password → 85%（GitHub 就绪）
+user_service.py → Static Rule S005 → 第 42 行 → hardcoded_password → 85%（GitHub 就绪）
+order_service.py → AI File Review correctness → 第 87 行 → 事务风险 → 72%（仅报告）
 ```
 
-### 评审决策驾驶舱
+证据链包含 `review_source` 元数据，标注发现的来源类型（`Static Rule S005`、`AI File Review correctness`、`AI Cross-file Review api_contract`），报告页面以徽章形式展示。
+
+### 评审决策Cockpit
 
 报告页面设计为**合并决策辅助工具**，而不仅仅是一个发现列表：
 
@@ -231,8 +246,8 @@ open http://localhost:8000
 ```
 tests/
 ├── test_static_scanner.py            # 15 条静态规则 S001-S015（12 个测试）
-├── test_review_engine.py             # 编排引擎、错误分类、dry_run（10 个测试）
-├── test_pages.py                     # 页面渲染、驾驶舱、证据链、评测页（10 个测试）
+├── test_review_engine.py             # 编排引擎、错误分类、dry_run、finding source 元数据（12 个测试）
+├── test_pages.py                     # 页面渲染、Cockpit、证据链、评测页、source 徽章（15 个测试）
 ├── test_confidence_calculator.py     # 阈值、同意加成、置信度门禁（9 个测试）
 ├── test_github_client.py             # URL 解析、PR 信息获取（7 个测试）
 ├── test_risk_scorer.py               # 路径/关键词/大小评分（6 个测试）
@@ -241,7 +256,7 @@ tests/
 ├── test_diff_utils.py                # Patch 解析边界情况（5 个测试）
 ├── test_ai_provider_adapter.py       # Provider adapter 适配层（4 个测试）
 ├── test_task_status.py               # _mark_task_done 终端步骤保护（3 个测试）
-├── test_system_status.py             # 系统状态 API（3 个测试）
+├── test_system_status.py             # 系统状态 API、prompt 约束检查（4 个测试）
 ├── test_ai_client.py                 # AI 客户端 fallback 行为（3 个测试）
 ├── test_database_migration.py        # SQLite schema 迁移（2 个测试）
 └── test_config.py                    # 配置兼容性（2 个测试）
@@ -309,8 +324,8 @@ frontend-prototype/              # React + shadcn/ui 原型
 | 规则 | 15 条确定性规则（S001–S015），仅扫描 patch 新增行 |
 | AI 集成 | LLM 驱动的 PR 摘要、逐文件深度/普通审查、跨文件一致性检查 |
 | 噪音控制 | 变更行分析 + 置信度门禁（3 个阈值）+ 签名去重 |
-| 用户体验 | 驾驶舱仪表盘：指标卡片、风险地图、流水线条、键盘快捷键、证据链 |
-| 测试 | 15 个测试文件共 86 个测试，CI 在 Python 3.10 上通过 |
+| 用户体验 | Cockpit 仪表盘：指标卡片、风险地图、流水线条、键盘快捷键、证据链 |
+| 测试 | 15 个测试文件共 94 个测试，CI 在 Python 3.10 上通过 |
 | 前端展望 | 独立的 shadcn/ui React 原型位于 `frontend-prototype/` |
 
 **核心差异：** 不是"diff-to-LLM"包装器。每个发现都有置信度分数、证据轨迹和可见性门禁——将 AI 审查从建议列表转变为合并决策工具。
