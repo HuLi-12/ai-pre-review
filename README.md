@@ -246,19 +246,20 @@ open http://localhost:8000
 ```
 tests/
 ├── test_static_scanner.py            # 15 条静态规则 S001-S015（12 个测试）
-├── test_review_engine.py             # 编排引擎、错误分类、dry_run、finding source 元数据（12 个测试）
-├── test_pages.py                     # 页面渲染、Cockpit、证据链、评测页、source 徽章（15 个测试）
+├── test_review_engine.py             # 编排引擎、错误分类、dry_run、finding source 元数据（13 个测试）
+├── test_pages.py                     # 页面渲染、Cockpit、证据链、评测页、source 徽章（19 个测试）
 ├── test_confidence_calculator.py     # 阈值、同意加成、置信度门禁（9 个测试）
 ├── test_github_client.py             # URL 解析、PR 信息获取（7 个测试）
 ├── test_risk_scorer.py               # 路径/关键词/大小评分（6 个测试）
-├── test_report_generator.py          # GitHub 评论、github_ready 标记（5 个测试）
+├── test_report_generator.py          # GitHub 评论、github_ready 标记（6 个测试）
 ├── test_golden_evaluation.py         # 评测框架、pipeline 指标（5 个测试）
 ├── test_diff_utils.py                # Patch 解析边界情况（5 个测试）
 ├── test_ai_provider_adapter.py       # Provider adapter 适配层（4 个测试）
 ├── test_task_status.py               # _mark_task_done 终端步骤保护（3 个测试）
-├── test_system_status.py             # 系统状态 API、prompt 约束检查（4 个测试）
+├── test_system_status.py             # 系统状态 API、prompt 约束检查（5 个测试）
 ├── test_ai_client.py                 # AI 客户端 fallback 行为（3 个测试）
 ├── test_database_migration.py        # SQLite schema 迁移（2 个测试）
+├── test_finding_suggestions.py       # 历史 finding 建议/来源补全（2 个测试）
 └── test_config.py                    # 配置兼容性（2 个测试）
 ```
 
@@ -325,7 +326,7 @@ frontend-prototype/              # React + shadcn/ui 原型
 | AI 集成 | LLM 驱动的 PR 摘要、逐文件深度/普通审查、跨文件一致性检查 |
 | 噪音控制 | 变更行分析 + 置信度门禁（3 个阈值）+ 签名去重 |
 | 用户体验 | Cockpit 仪表盘：指标卡片、风险地图、流水线条、键盘快捷键、证据链 |
-| 测试 | 15 个测试文件共 94 个测试，CI 在 Python 3.10 上通过 |
+| 测试 | 16 个测试文件共 103 个测试，CI 在 Python 3.10 上通过 |
 | 前端展望 | 独立的 shadcn/ui React 原型位于 `frontend-prototype/` |
 
 **核心差异：** 不是"diff-to-LLM"包装器。每个发现都有置信度分数、证据轨迹和可见性门禁——将 AI 审查从建议列表转变为合并决策工具。

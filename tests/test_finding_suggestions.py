@@ -1,10 +1,11 @@
-from app.database import SessionLocal
+from app.database import SessionLocal, init_db
 from app.finding_suggestions import hydrate_missing_suggestions
 from app.models import PRReviewFinding, PRReviewTask
 import json
 
 
 def test_hydrate_missing_suggestions_does_not_dirty_db_session():
+    init_db()
     db = SessionLocal()
     try:
         task = PRReviewTask(
@@ -39,6 +40,7 @@ def test_hydrate_missing_suggestions_does_not_dirty_db_session():
 
 
 def test_hydrate_missing_suggestions_adds_static_rule_review_source_without_dirtying_session():
+    init_db()
     db = SessionLocal()
     try:
         task = PRReviewTask(
