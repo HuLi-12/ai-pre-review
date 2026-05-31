@@ -60,6 +60,8 @@ def calculate_confidence(finding: dict, has_rule_match: bool = False) -> float:
     suggestion = finding.get("suggestion", "")
     if len(suggestion) > 20:
         evidence += 0.10  # Has actionable suggestion
+    if source == "ai_file" and finding.get("changed_line_evidence"):
+        evidence += 0.10  # AI claim is anchored to a changed line
 
     score += evidence
 
@@ -77,6 +79,8 @@ def calculate_confidence(finding: dict, has_rule_match: bool = False) -> float:
         penalty += 0.10
     if source == "ai_file" and finding.get("type") == "maintainability":
         penalty += 0.05
+    if source == "ai_file" and not finding.get("changed_line_evidence"):
+        penalty += 0.35
 
     score -= penalty
 

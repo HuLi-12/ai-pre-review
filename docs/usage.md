@@ -14,9 +14,13 @@ pip install -r requirements.txt
 
 ```bash
 GITHUB_TOKEN=ghp_xxx
+AI_PROVIDER=auto
 AI_API_KEY=sk_xxx
-AI_BASE_URL=https://api.openai.com/v1
+AI_API_BASE=https://api.openai.com/v1
 AI_MODEL=gpt-4o-mini
+AI_DEEP_MODEL=gpt-4o
+AI_TIMEOUT_SECONDS=45
+AI_MAX_TOKENS=1600
 ```
 
 说明：
@@ -24,6 +28,32 @@ AI_MODEL=gpt-4o-mini
 - 不配置 `GITHUB_TOKEN` 时，公开 PR 仍可通过 GitHub API 或 `.diff` fallback 尝试分析。
 - 不配置 `AI_API_KEY` 时，系统会使用安全 fallback，仍能展示静态规则、风险评分和基础报告。
 - 如果要自动评论到 GitHub PR，需要提供有仓库评论权限的 GitHub Token。
+
+DeepSeek 示例配置：
+
+```bash
+AI_API_KEY=你的 DeepSeek API Key
+AI_PROVIDER=auto
+AI_API_BASE=https://api.deepseek.com/v1
+AI_MODEL=deepseek-v4-flash
+AI_DEEP_MODEL=deepseek-v4-flash
+AI_TIMEOUT_SECONDS=20
+AI_MAX_TOKENS=800
+```
+
+`AI_PROVIDER=auto` 会根据 `AI_API_BASE` 自动识别 DeepSeek、OpenAI 或其他 OpenAI-compatible 服务。也可以显式设置为 `deepseek`、`openai` 或 `openai-compatible`。`AI_MODEL` 用于 PR 总结，`AI_DEEP_MODEL` 用于文件级和跨文件审查。`AI_TIMEOUT_SECONDS` 和 `AI_MAX_TOKENS` 用来控制响应速度；模型超时或失败时，系统会自动回退到静态规则结果，避免任务卡死。
+
+其他 OpenAI-compatible 模型服务示例：
+
+```bash
+AI_PROVIDER=openai-compatible
+AI_API_KEY=你的兼容服务 API Key
+AI_API_BASE=https://your-provider.example.com/v1
+AI_MODEL=provider-fast-model
+AI_DEEP_MODEL=provider-strong-model
+```
+
+兼容说明：当前客户端使用 OpenAI-compatible Chat Completions 协议。DeepSeek、OpenAI、以及提供 `/v1/chat/completions` 兼容接口的服务可以直接配置；不兼容该协议的原生 SDK 供应商需要后续新增 adapter。
 
 ## 2. 启动服务
 
@@ -47,6 +77,12 @@ http://localhost:8000
 | 审查报告 | `/tasks/{task_id}/report` | 查看 PR 总结、风险文件、finding、置信度和建议 |
 | 规则说明 | `/rules` | 查看 S001-S015 规则 |
 | 评测仪表盘 | `/evaluation` | 查看 Golden Evaluation 和规则级质量指标 |
+
+健康检查 API：
+
+| API | 用途 |
+| --- | --- |
+| `/api/system/status` | 查看 AI Provider、模型名、超时、最大输出长度、GitHub Token 是否配置。该接口只返回布尔状态，不返回密钥内容。 |
 
 ## 3. 提交一次 PR 审查
 
@@ -94,9 +130,13 @@ FETCHING_PR
 | `>= 0.80` | 可进入 GitHub 评论候选 |
 | `critical/high >= 0.70` | 高风险问题可进入 GitHub 评论候选 |
 
+AI finding 还会经过 changed-line evidence gate：文件级 AI 问题需要尽量锚定到 PR 新增行或其附近。如果模型给出的行号不在 changed hunk 附近，系统会降低置信度并默认过滤低证据结果；如果能绑定到 changed line，报告会保留对应代码片段和置信度原因。这是为了减少普通 diff-to-LLM 容易出现的“合理但无证据”误报。
+
 ## 5. 使用 Golden Evaluation
 
 Golden Evaluation 是本项目的质量评测集，用固定 PR/diff 样例衡量系统是否能正确发现问题，并控制误报。
+
+评测边界需要明确：这里的 deterministic evaluation 主要衡量静态规则检测、去重、置信度门控和 GitHub-ready gating，不直接调用 LLM，因此不代表完整语义 AI Review 的全部质量。LLM 语义审查效果应结合真实 PR demo 和人工复核一起展示。
 
 ### 查看页面
 
@@ -109,6 +149,7 @@ http://localhost:8000/evaluation
 页面展示：
 
 - 总样例数量，目前不少于 20 个。
+- 真实公开 PR 回放集，目前不少于 5 个固定 snapshot。
 - 全局 `Precision`、`Recall`。
 - 误报数量 `False Positives`。
 - 漏报数量 `Missed`。
@@ -146,6 +187,24 @@ curl http://localhost:8000/api/evaluation/golden
 }
 ```
 
+真实公开 PR 回放 API：
+
+```bash
+curl http://localhost:8000/api/evaluation/real-pr-replay
+```
+
+该接口使用固定在本地的公开 PR diff snapshot，不依赖实时 GitHub 网络请求。当前包含：
+
+| PR | 用途 |
+| --- | --- |
+| `localtunnel/localtunnel#339` | 源码变更无测试，验证 S015 test gap |
+| `pallets/flask#5425` | 依赖文件变更，验证低风险控制 |
+| `psf/requests#6700` | 测试文件变更，验证不误报源码风险 |
+| `fastapi/fastapi#11400` | 文档变更，验证文档误报控制 |
+| `pallets/click#2730` | 源码与测试一起变更，验证不误报测试缺失 |
+ 
+首页的 `Try public PR sample` 会自动填入 `https://github.com/localtunnel/localtunnel/pull/339`，便于演示真实 PR 分析链路。
+
 ### Golden Evaluation 的展示价值
 
 普通 diff-to-LLM 通常只把 diff 直接交给模型，缺少量化验收。本系统用 Golden Evaluation 展示：
@@ -155,6 +214,7 @@ curl http://localhost:8000/api/evaluation/golden
 - 哪些预期问题被漏掉。
 - 哪些 finding 经过置信度门控后才展示。
 - 哪些 finding 足够可靠，可以进入 GitHub 评论候选。
+- 真实 PR replay 中每条 finding 的来源 URL、规则、文件、行号和门控状态。
 
 这能支撑答辩中的核心观点：系统不是简单包装 LLM，而是有质量门控和可回归评测的 AI PR Review 工具。
 

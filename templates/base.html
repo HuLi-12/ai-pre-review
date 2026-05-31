@@ -1,97 +1,12 @@
 <!DOCTYPE html>
-<html lang="zh-CN" data-bs-theme="dark">
+<html lang="zh-CN" data-bs-theme="light">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>{% block title %}AI Review Cockpit{% endblock %}</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
     <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.2/font/bootstrap-icons.css" rel="stylesheet">
-    <style>
-        :root {
-            --cockpit-bg: #0B1020;
-            --cockpit-card: rgba(255,255,255,0.06);
-            --cockpit-border: rgba(148,163,184,0.2);
-            --cockpit-primary: #38BDF8;
-            --cockpit-danger: #EF4444;
-            --cockpit-warning: #F59E0B;
-            --cockpit-success: #22C55E;
-            --cockpit-text: #E5E7EB;
-            --cockpit-muted: #64748B;
-        }
-        body {
-            background: var(--cockpit-bg);
-            color: var(--cockpit-text);
-            font-family: -apple-system, 'Segoe UI', system-ui, sans-serif;
-        }
-        .navbar {
-            background: rgba(11,16,32,0.95) !important;
-            backdrop-filter: blur(12px);
-            border-bottom: 1px solid var(--cockpit-border);
-        }
-        .navbar-brand {
-            font-weight: 700;
-            letter-spacing: -0.5px;
-            background: linear-gradient(135deg, #38BDF8, #818CF8);
-            -webkit-background-clip: text;
-            -webkit-text-fill-color: transparent;
-        }
-        .navbar .nav-link {
-            color: var(--cockpit-muted) !important;
-            font-size: 0.875rem;
-            transition: color 0.2s;
-        }
-        .navbar .nav-link:hover {
-            color: var(--cockpit-text) !important;
-        }
-        .cockpit-card {
-            background: var(--cockpit-card);
-            border: 1px solid var(--cockpit-border);
-            border-radius: 12px;
-            backdrop-filter: blur(8px);
-        }
-        .cockpit-card:hover {
-            border-color: rgba(148,163,184,0.35);
-        }
-        .severity-critical { color: var(--cockpit-danger); }
-        .severity-high { color: var(--cockpit-warning); }
-        .severity-medium { color: #EAB308; }
-        .severity-low { color: var(--cockpit-muted); }
-        .badge-critical { background: var(--cockpit-danger); }
-        .badge-high { background: var(--cockpit-warning); color: #000; }
-        .badge-medium { background: #EAB308; color: #000; }
-        .badge-low { background: var(--cockpit-muted); }
-        .finding-item { border-left: 3px solid transparent; }
-        .finding-item.critical { border-left-color: var(--cockpit-danger); }
-        .finding-item.high { border-left-color: var(--cockpit-warning); }
-        .finding-item.medium { border-left-color: #EAB308; }
-        .finding-item.low { border-left-color: var(--cockpit-muted); }
-        .code-block {
-            background: #0D1117;
-            color: #E5E7EB;
-            border-radius: 8px;
-            padding: 14px;
-            font-size: 13px;
-            overflow-x: auto;
-            font-family: 'JetBrains Mono', 'Fira Code', monospace;
-            border: 1px solid rgba(148,163,184,0.15);
-        }
-        .diff-add { background: rgba(34,197,94,0.15); }
-        .diff-del { background: rgba(239,68,68,0.15); }
-        .glow-primary { box-shadow: 0 0 30px rgba(56,189,248,0.1); }
-        .glow-danger { box-shadow: 0 0 30px rgba(239,68,68,0.1); }
-        .text-gradient {
-            background: linear-gradient(135deg, #38BDF8, #818CF8);
-            -webkit-background-clip: text;
-            -webkit-text-fill-color: transparent;
-        }
-        .border-gradient {
-            border-image: linear-gradient(135deg, #38BDF8, #818CF8) 1;
-        }
-        ::-webkit-scrollbar { width: 6px; height: 6px; }
-        ::-webkit-scrollbar-track { background: transparent; }
-        ::-webkit-scrollbar-thumb { background: rgba(148,163,184,0.3); border-radius: 3px; }
-        ::-webkit-scrollbar-thumb:hover { background: rgba(148,163,184,0.5); }
-    </style>
+    <link href="/static/css/cockpit.css" rel="stylesheet">
     {% block extra_head %}{% endblock %}
 </head>
 <body>

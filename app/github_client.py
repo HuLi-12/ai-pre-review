@@ -106,9 +106,21 @@ class GitHubClient:
         """Fetch changed files with patch diff"""
         url = f"{self.base_url}/repos/{owner}/{repo}/pulls/{number}/files"
         try:
-            resp = httpx.get(url, headers=self._get_headers(accept="application/vnd.github.v3+json"), timeout=60)
-            resp.raise_for_status()
-            files_data = resp.json()
+            files_data = []
+            page = 1
+            while True:
+                resp = httpx.get(
+                    url,
+                    headers=self._get_headers(accept="application/vnd.github.v3+json"),
+                    timeout=60,
+                    params={"per_page": 100, "page": page},
+                )
+                resp.raise_for_status()
+                page_data = resp.json()
+                files_data.extend(page_data)
+                if len(page_data) < 100:
+                    break
+                page += 1
         except httpx.HTTPStatusError as exc:
             if exc.response.status_code in (403, 404):
                 return self._get_changed_files_from_public_diff(owner, repo, number)

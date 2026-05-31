@@ -1,7 +1,8 @@
 from sqlalchemy import create_engine, inspect, text
+from sqlalchemy import Float
 
 from app.database import Base, ensure_sqlite_schema
-from app.models import PRReviewTask
+from app.models import PRReviewFinding, PRReviewTask
 
 
 def test_ensure_sqlite_schema_adds_missing_model_columns():
@@ -25,3 +26,7 @@ def test_ensure_sqlite_schema_adds_missing_model_columns():
     assert "deduped_finding_count" in columns
     assert "visible_finding_count" in columns
     assert "github_ready_count" in columns
+
+
+def test_finding_confidence_uses_sqlite_safe_float_type():
+    assert isinstance(PRReviewFinding.__table__.c.confidence.type, Float)

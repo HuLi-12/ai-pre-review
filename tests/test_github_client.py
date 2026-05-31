@@ -75,6 +75,45 @@ def test_get_changed_files_uses_authenticated_contents_api_with_head_sha(monkeyp
     assert all("raw.githubusercontent.com" not in c["url"] for c in calls)
 
 
+def test_get_changed_files_fetches_all_github_pages(monkeypatch):
+    page_calls = []
+
+    class FakeResponse:
+        def __init__(self, payload):
+            self._payload = payload
+            self.status_code = 200
+
+        def raise_for_status(self):
+            pass
+
+        def json(self):
+            return self._payload
+
+    def fake_get(url, headers=None, timeout=30, params=None, **kwargs):
+        if url.endswith("/pulls/9/files"):
+            page = (params or {}).get("page")
+            page_calls.append(page)
+            count = 100 if page == 1 else 1
+            return FakeResponse([
+                {
+                    "filename": f"app/file_{page}_{idx}.py",
+                    "status": "modified",
+                    "additions": 1,
+                    "deletions": 0,
+                    "patch": "@@ -1,1 +1,2 @@\n+print('x')",
+                }
+                for idx in range(count)
+            ])
+        raise AssertionError(f"unexpected URL: {url}")
+
+    monkeypatch.setattr("app.github_client.httpx.get", fake_get)
+
+    files = GitHubClient().get_changed_files("acme", "repo", 9)
+
+    assert len(files) == 101
+    assert page_calls == [1, 2]
+
+
 def test_get_changed_files_falls_back_to_public_diff_when_api_is_forbidden(monkeypatch):
     class FakeResponse:
         def __init__(self, payload=None, text="", status_code=200):

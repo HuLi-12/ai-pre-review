@@ -72,9 +72,10 @@ added_lines = [line for line in patch if line.startswith('+') and not line.start
 controller.py  → 分数  8/15 → 深度审查（完整内容 + 关联文件）
 README.md      → 分数 -2/15 → 跳过（无需分析）
 service.py     → 分数  4/15 → 普通审查（仅 patch + 摘要上下文）
+```
 
 > 内部评分范围：`-2` 到 `15`。UI 风险条会转换为百分比显示。
-```
+
 
 ### 混合规则 + AI 引擎
 
@@ -194,7 +195,7 @@ flowchart LR
 ```bash
 # 1. 配置环境变量
 cp .env.example .env
-# 编辑 .env：设置 GITHUB_TOKEN、AI_API_KEY、AI_BASE_URL
+# 编辑 .env：设置 GITHUB_TOKEN、AI_PROVIDER、AI_API_KEY、AI_API_BASE、AI_MODEL
 
 # 2. 安装依赖
 pip install -r requirements.txt
@@ -264,7 +265,7 @@ docs/demo/                       # 操作指南
 
 ## Final Project Highlights
 
-**AI Review Cockpit** 是一个基于证据、面向决策的 AI 代码审查系统，经过 16+ 个阶段性 PR 的结构化开发迭代构建。
+**AI Review Cockpit** 是一个基于证据、面向决策的 AI 代码审查系统，经过 14+ 个阶段性 PR 的结构化开发迭代构建。
 
 | 领域 | 成果 |
 |------|------|

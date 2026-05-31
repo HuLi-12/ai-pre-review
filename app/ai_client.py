@@ -15,6 +15,7 @@ class AIClient:
             self.client = OpenAI(
                 api_key=self.api_key,
                 base_url=api_base or settings.ai_api_base,
+                timeout=settings.ai_timeout_seconds,
             )
         self.model = settings.ai_model
         self.deep_model = settings.ai_deep_model
@@ -24,15 +25,19 @@ class AIClient:
         """Call LLM with prompts and return text response"""
         if not self.client:
             return ""
-        resp = self.client.chat.completions.create(
-            model=model or self.model,
-            temperature=temperature,
-            messages=[
-                {"role": "system", "content": system_prompt},
-                {"role": "user", "content": user_prompt},
-            ],
-        )
-        return resp.choices[0].message.content or ""
+        try:
+            resp = self.client.chat.completions.create(
+                model=model or self.model,
+                temperature=temperature,
+                max_tokens=settings.ai_max_tokens,
+                messages=[
+                    {"role": "system", "content": system_prompt},
+                    {"role": "user", "content": user_prompt},
+                ],
+            )
+            return resp.choices[0].message.content or ""
+        except Exception:
+            return ""
 
     def _call_llm_json(self, system_prompt: str, user_prompt: str,
                        model: Optional[str] = None) -> dict:

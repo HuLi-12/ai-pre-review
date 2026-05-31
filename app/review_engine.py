@@ -7,6 +7,7 @@ from sqlalchemy.orm import Session
 
 from app.github_client import GitHubClient, ChangedFile, PRInfo
 from app.static_scanner import StaticScanner, RuleFinding
+from app.diff_utils import parse_patch
 from app.context_builder import ContextBuilder, ReviewContext
 from app.ai_client import AIClient
 from app.models import PRReviewTask, PRChangedFile, PRReviewFinding
@@ -69,6 +70,7 @@ class ReviewEngine:
             # ---- Stage 3: Static Rule Scanning (on patch only) ----
             await self._update_progress(task, db, "STATIC_SCAN", 30)
             rule_findings = self._run_static_scan(changed_files)
+            self._changed_line_index = self._build_changed_line_index(changed_files)
 
             # ---- Stage 4: Risk Scoring & AI Review ----
             await self._update_progress(task, db, "AI_PR_SUMMARY", 40)
@@ -124,6 +126,8 @@ class ReviewEngine:
             if task.auto_comment and merged:
                 try:
                     comment = self.report_gen.generate_github_comment(report)
+                    if not task.comment_id:
+                        task.comment_id = self._find_reusable_comment_id(task, db)
                     if task.comment_id:
                         ok = self.github.update_pr_comment(owner, repo, task.comment_id, comment)
                         task.current_step = "COMMENT_UPDATED" if ok else "COMMENT_FAILED"
@@ -152,6 +156,20 @@ class ReviewEngine:
         task.progress = progress
         task.current_step = step
         db.commit()
+
+    @staticmethod
+    def _find_reusable_comment_id(task: PRReviewTask, db: Session) -> Optional[int]:
+        previous = (
+            db.query(PRReviewTask)
+            .filter(PRReviewTask.repo_owner == task.repo_owner)
+            .filter(PRReviewTask.repo_name == task.repo_name)
+            .filter(PRReviewTask.pr_number == task.pr_number)
+            .filter(PRReviewTask.comment_id.isnot(None))
+            .filter(PRReviewTask.id != task.id)
+            .order_by(PRReviewTask.updated_at.desc(), PRReviewTask.id.desc())
+            .first()
+        )
+        return previous.comment_id if previous else None
 
     def _save_changed_files(self, task_id: int, files: List[ChangedFile], db: Session):
         """Save changed files and build file_path -> file_id mapping."""
@@ -201,6 +219,12 @@ class ReviewEngine:
                     "label": "Line",
                     "content": str(f.get("line")),
                 })
+            if f.get("line_content"):
+                evidence.append({
+                    "type": "code_snippet",
+                    "label": "Code",
+                    "content": f.get("line_content", "")[:240],
+                })
             finding_type = f.get("type", "") or source
             if finding_type and finding_type.startswith("S"):
                 evidence.append({
@@ -223,6 +247,13 @@ class ReviewEngine:
                 "label": "Confidence Gate",
                 "content": f"{conf_pct}% ({severity}) — {conf_label}",
             })
+
+            if f.get("confidence_reason"):
+                evidence.append({
+                    "type": "confidence_reason",
+                    "label": "Confidence Reason",
+                    "content": f.get("confidence_reason", ""),
+                })
 
             db_finding = PRReviewFinding(
                 task_id=task_id,
@@ -432,6 +463,63 @@ class ReviewEngine:
 
         return f"{file_path}:{issue_type}:{line_bucket}:{title[:20]}"
 
+    @staticmethod
+    def _build_changed_line_index(changed_files: List[ChangedFile]) -> Dict[str, Dict[int, str]]:
+        """Build file -> added line -> content index for AI evidence anchoring."""
+        index: Dict[str, Dict[int, str]] = {}
+        for changed_file in changed_files:
+            if not changed_file.patch:
+                continue
+            lines = parse_patch(changed_file.patch)
+            if not lines:
+                continue
+            index[changed_file.file_path] = {
+                item["new_line"]: item["content"]
+                for item in lines
+                if item.get("new_line") is not None
+            }
+        return index
+
+    @staticmethod
+    def _coerce_line_number(line: Any) -> int:
+        try:
+            return int(line)
+        except (TypeError, ValueError):
+            return 0
+
+    def _attach_changed_line_evidence(self, finding: dict) -> dict:
+        """Anchor AI file findings to nearby changed lines when possible."""
+        if finding.get("source") != "ai_file":
+            return finding
+
+        file_path = finding.get("file", "")
+        line = self._coerce_line_number(finding.get("line"))
+        if line:
+            finding["line"] = line
+
+        changed_lines = getattr(self, "_changed_line_index", {}).get(file_path, {})
+        if not changed_lines:
+            finding["changed_line_evidence"] = False
+            finding["confidence_reason"] = "AI finding has no changed-line evidence for this file"
+            return finding
+
+        nearest_line = None
+        for candidate in changed_lines:
+            if line and abs(candidate - line) <= 3:
+                if nearest_line is None or abs(candidate - line) < abs(nearest_line - line):
+                    nearest_line = candidate
+
+        if nearest_line is None:
+            finding["changed_line_evidence"] = False
+            finding["confidence_reason"] = "AI finding cited a line outside the changed hunk"
+            return finding
+
+        finding["changed_line_evidence"] = True
+        finding["line"] = line or nearest_line
+        finding["line_content"] = changed_lines[nearest_line]
+        finding["confidence_reason"] = "AI finding anchored to changed-line evidence"
+        return finding
+
     def _merge_findings(
         self,
         file_findings: List[dict],
@@ -454,12 +542,14 @@ class ReviewEngine:
                     "suggestion": "",
                     "confidence": 0.0,
                     "source": "static_rule",
+                    "line_content": rf.line_content,
+                    "confidence_reason": "Deterministic static rule match with changed-line evidence",
                 })
 
         # Add AI file findings
         for fd in file_findings:
             fd["source"] = "ai_file"
-            merged.append(fd)
+            merged.append(self._attach_changed_line_evidence(fd))
 
         # Add cross-file findings
         for fd in cross_findings:

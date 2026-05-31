@@ -22,7 +22,7 @@ def test_s014_always_high():
     assert should_show_in_report(conf) is True
 
 
-def test_well_documented_ai_finding():
+def test_well_documented_ai_finding_without_changed_line_evidence_stays_below_comment_gate():
     conf = calculate_confidence({
         "source": "ai_file",
         "file": "app.py",
@@ -30,6 +30,20 @@ def test_well_documented_ai_finding():
         "reason": "Missing null check on user input that could cause NullPointerException",
         "suggestion": "Add if user is not None: check before processing",
         "severity": "high",
+    })
+    assert conf < 0.70
+    assert should_comment_to_github(conf, "high") is False
+
+
+def test_ai_finding_with_changed_line_evidence_can_reach_comment_gate():
+    conf = calculate_confidence({
+        "source": "ai_file",
+        "file": "app.py",
+        "line": 42,
+        "reason": "Missing null check on user input that could cause NullPointerException",
+        "suggestion": "Add if user is not None: check before processing",
+        "severity": "high",
+        "changed_line_evidence": True,
     })
     assert conf >= 0.80
     assert should_comment_to_github(conf, "high") is True

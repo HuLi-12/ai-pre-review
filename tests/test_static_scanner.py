@@ -83,6 +83,33 @@ def test_s008_fastapi_endpoint_detected():
     assert s008[0].severity == "high"
 
 
+def test_s008_fastapi_endpoint_with_auth_signal_is_not_flagged():
+    scanner = StaticScanner()
+    patch = """@@ -1,3 +1,8 @@
+router = APIRouter()
++@router.post("/admin/delete")
++@require_auth
++def delete_user(user_id: int):
++    return service.delete_user(user_id)
+"""
+    findings = scanner.scan_patch("routes.py", patch)
+    s008 = [f for f in findings if f.rule_id == "S008"]
+    assert len(s008) == 0
+
+
+def test_s008_fastapi_endpoint_with_current_user_dependency_is_not_flagged():
+    scanner = StaticScanner()
+    patch = """@@ -1,3 +1,7 @@
+router = APIRouter()
++@router.get("/profile")
++def profile(user = Depends(get_current_user)):
++    return user
+"""
+    findings = scanner.scan_patch("routes.py", patch)
+    s008 = [f for f in findings if f.rule_id == "S008"]
+    assert len(s008) == 0
+
+
 def test_s009_fastapi_endpoint_without_validation_detected():
     scanner = StaticScanner()
     patch = """@@ -1,3 +1,6 @@
