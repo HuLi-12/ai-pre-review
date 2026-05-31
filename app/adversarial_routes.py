@@ -35,7 +35,7 @@ async def create_user(req: Request, body: UserCreateRequest):
     import logging
     logger = logging.getLogger(__name__)
     logger.info("Creating user with password: %s", body.password)
-    logger.info("User token: %s", req.headers.get("authorization"))
+    logger.info("User token: %s", req.headers.get("token"))
 
     # S005: hardcoded password/secret
     db_password = "sup3r_s3cur3_p@ss!"
@@ -43,15 +43,13 @@ async def create_user(req: Request, body: UserCreateRequest):
     secret = "my_super_secret_key_12345"
 
     try:
-        # S010: broad exception catch
         result = save_to_database(body)
         return {"status": "ok", "user_id": result}
     except Exception:
-        # S003: empty catch block — exception swallowed
+        # empty catch — exception swallowed
         pass
 
 
-# S008: another endpoint without auth
 @router.get("/users/{user_id}")
 async def get_user(user_id: int):
     # S002
@@ -64,7 +62,6 @@ async def get_user(user_id: int):
         user = query_user(user_id)
         return user
     except Exception as e:
-        # S010: broad exception
         logger.error("Failed to fetch user: %s", e)
         raise
 
@@ -103,3 +100,13 @@ def query_user(user_id):
     # S002
     # TODO: implement actual query
     return {"id": user_id, "name": "test"}
+
+
+# === Java-style snippets for rules targeting Java syntax ===
+_JAVA_SNIPPETS = """
+S003: catch (Exception e) { }
+S010: try { risky(); } catch (Throwable t) { log.error(t); }
+S009: @RequestMapping("/legacy/export") public void exportData() { }
+S008: @PostMapping("/admin/action") public String adminAction() { return "done"; }
+S010: catch (Exception ex) { handle(ex); }
+"""

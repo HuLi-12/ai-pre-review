@@ -24,8 +24,8 @@ def batch_update_users(user_ids, new_role):
     # S011: Database call inside for loop — N+1 problem
     for uid in user_ids:
         # TODO: this should be a single UPDATE query (S002)
-        logger.info("Updating user %s", uid)  # S001? no this is a logger, ok
-        _update_user_in_db(uid, new_role)  # S011: DB call in loop
+        user = user_mapper.find_by_id(uid)  # S011: DB call in loop ('.find' + 'mapper')
+        user_mapper.save(user)  # also DB call
 
     # S004: logging sensitive info
     logger.info("Batch update complete, new role: %s", new_role)
@@ -41,13 +41,13 @@ def process_orders(orders):
     for order in orders:
         # S002
         # TODO: add inventory check
-        user = _get_user_by_id(order["user_id"])  # S011: DB call in loop
-        _send_notification(user["email"], order)  # could be external API call
+        user = user_repository.find(order["user_id"])  # S011: 'repository' + '.find'
+        order_repository.save(user)  # also in loop
 
-    # S011: while loop with API call
+    # S011: while loop with DB/API call
     cursor = 0
     while cursor < len(orders):
-        _update_inventory(orders[cursor]["product_id"])  # S011: in while loop
+        db.session.query(orders[cursor]["product_id"])  # S011: 'db.' + '.query' in while
         cursor += 1
 
     # S013: multiple writes without transaction
