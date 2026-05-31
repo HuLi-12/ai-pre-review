@@ -19,6 +19,20 @@ python main.py
 open http://localhost:8000
 ```
 
+## 三种 Finding Source
+
+AI Review Cockpit 的发现不再强制归类到 S001-S015，而是按来源分为三类：
+
+| Source | 类型 | rule_id | category 示例 | 说明 |
+|--------|------|---------|---------------|------|
+| **Static Rule** | 确定性信号 | `S005` | `security` | 正则匹配 patch 新增行，高置信度 |
+| **AI File Review** | 语义分析 | `null` | `correctness`, `security`, `reliability`, `test`, `maintainability` | LLM 逐文件分析，不强制匹配规则 ID |
+| **AI Cross-file Review** | 跨文件一致性 | `null` | `api_contract`, `data_flow`, `data_consistency`, `architecture` | LLM 分析多个文件间的契约和数据流问题 |
+
+报告页会为每条 finding 显示来源徽章：`Static Rule S005` / `AI File Review correctness` / `AI Cross-file Review api_contract`。
+
+> **Rules are evidence, not limits.** S001-S015 是确定性信号，不代表 AI Review Cockpit 的全部 Review 能力。
+
 ## 操作步骤
 
 ### 步骤 1：首页 — 提交 PR
@@ -33,7 +47,7 @@ open http://localhost:8000
 │                                                              │
 │  ┌──────────────────────────┐  ┌────────────┐               │
 │  │ GitHub PR 地址            │  │ 风险等级    │ HIGH          │
-│  │ [输入________________]    │  │ 发现数量    │ 6             │
+│  │ [输入________________]    │  │ 发现数量    | 6             │
 │  │                          │  │ 噪音过滤    │ 67%           │
 │  │ ☐ 自动评论到 GitHub       │  │ GitHub 就绪│ 2             │
 │  │ [开始审查]                │  └────────────┘               │
@@ -61,8 +75,8 @@ open http://localhost:8000
 │                                                              │
 │  阶段：                                                      │
 │  ✓ FETCHING_PR       — PR 信息 + diff 已获取                 │
-│  ✓ BUILDING_CONTEXT  — 关联文件已识别                         │
-│  ✓ STATIC_SCAN       — 15 条规则已检查（发现 2 条）          │
+│  ✓ BUILDING_CONTEXT  — 关联文件已识别                          │
+│  ✓ STATIC_SCAN       — 15 条规则已检查（发现 2 条）           │
 │  ✓ AI_PR_SUMMARY     — PR 摘要已生成                          │
 │  ⏳ AI_FILE_REVIEW   — 正在分析文件...                        │
 │  ☐ AI_CROSS_FILE     — 等待中                                │
@@ -103,17 +117,27 @@ open http://localhost:8000
 │ ██░░░░░░ 10% │                                               │
 │ +8/-0 干净   │ [按严重等级的发现]                              │
 │ 跳过         │ ┌─ 严重 ─────────────────────────────────┐    │
-│              │ │ 检测到硬编码密码 [S005]                  │    │
-│ [概览]       │ │ 置信度: 85% ████████████████░           │    │
-│ 严重: 1      │ │ user_service.py:42                      │    │
-│ 高: 1        │ │ 证据链：                                │    │
-│ 中: 0        │ │ 文件→S005 hardcoded_password→85% 置信度│    │
-│ 低: 0        │ │ 建议：使用环境变量而非字面量             │    │
-│              │ └─────────────────────────────────────────┘    │
-│ 重点关注：   │ ┌─ 高 ─────────────────────────────────────┐  │
-│ • 硬编码密码  │ │ 无 WHERE 条件的危险删除 [S014]           │  │
-│              │ │ 置信度: 85% ████████████████░             │  │
-│              │ │ user_dao.py:88                            │  │
+│              │ │ 检测到硬编码密码                          │    │
+│ [概览]       │ │ Static Rule S005             [徽章]     │    │
+│ 严重: 1      │ │ 置信度: 85% ████████████████░           │    │
+│ 高: 1        │ │ user_service.py:42                      │    │
+│ 中: 0        │ │ 证据链：                                │    │
+│ 低: 0        │ │ 文件→Static Rule S005→85% 置信度       │    │
+│              │ │ 建议：使用环境变量而非字面量              │    │
+│ 重点关注：   │ └─────────────────────────────────────────┘    │
+│ • 硬编码密码  │ ┌─ 高 ─────────────────────────────────────┐  │
+│ • 事务风险    │ │ 订单状态更新缺少事务保护                  │   │
+│              │ │ AI File Review correctness     [徽章]     │  │
+│              │ │ 置信度: 72% ██████████████░               │  │
+│              │ │ order_service.py:87                       │  │
+│              │ │ 证据链：                                  │  │
+│              │ │ 文件→AI File Review correctness→72% 置信度│  │
+│              │ └──────────────────────────────────────────┘  │
+│              │ ┌─ 中 ─────────────────────────────────────┐  │
+│              │ │ API 响应契约变更但调用方未更新            │   │
+│              │ │ AI Cross-file Review api_contract [徽章]  │  │
+│              │ │ 置信度: 78% ███████████████░              │  │
+│              │ │ api.py, client.py                         │  │
 │              │ └──────────────────────────────────────────┘  │
 └──────────────┴───────────────────────────────────────────────┘
 ```
@@ -126,9 +150,10 @@ open http://localhost:8000
 | **文件风险地图** | 点击任意文件过滤该文件的发现 |
 | **流水线条** | 原始 → 去重 → 置信度门禁 → GitHub 就绪 |
 | **评审决策** | "阻止合并"/"先修复再合并"/"建议审查"/"可安全合并" |
+| **来源徽章** | 每条 finding 标注来源：`Static Rule S005` / `AI File Review correctness` / `AI Cross-file Review api_contract` |
 | **严重等级标签** | 按严重等级过滤发现 |
 | **置信度过滤** | 开关"隐藏低置信度（< 0.60）" |
-| **证据链** | 每个发现展示证据轨迹 |
+| **证据链** | 每个发现展示完整的证据轨迹，包含 Review Source |
 | **反馈按钮** | 标记发现为有效 / 误报 / 已解决 |
 | **键盘快捷键** | `1-5` 过滤、`F` 下一条、`R` 刷新 |
 
@@ -141,28 +166,55 @@ open http://localhost:8000
 
 **风险等级：** HIGH
 **合并建议：** 建议修复 high 及以上风险后再合并
-**发现的发现数：** 3
+**发现数：** 3
 
 ### 重点关注
 - user_service.py 中发现硬编码密码
-- user_dao.py 中发现危险删除
+- order_service.py 中发现事务风险
 
 ### 高风险问题
 1. `user_service.py:42` — 检测到硬编码密码 [S005]（置信度：85%）
-2. `user_dao.py:88` — 无 WHERE 条件的危险删除 [S014]（置信度：85%）
+2. `order_service.py:87` — 订单状态更新缺少事务保护（置信度：72%）
 
 ### 证据摘要
 - **硬编码密码**（`user_service.py`）：检测到硬编码密码/密钥
-- **危险删除**（`user_dao.py`）：DELETE/UPDATE 没有明显的 WHERE 条件
+- **事务风险**（`order_service.py`）：AI 语义分析发现事务边界风险
 ```
 
 评论是**幂等**的——重新运行审查会更新已有评论，而非创建新评论。
 
 ## 尝试场景
 
+### Quick Demo：使用 Adversarial Validation PR
+
+项目维护了一个专门的验证分支，包含 40 个故意违规（S001-S014）：
+
+1. 访问 https://github.com/HuLi-12/ai-pre-review/pull/new/test/adversarial-validation-pr
+2. 创建 PR（标题带 `DO NOT MERGE`）
+3. 将 PR 链接粘贴到 Cockpit 首页，点击开始审查
+4. 验证报告中出现多种来源的 finding：
+   - Static Rule S005（硬编码密码，critical）
+   - Static Rule S014（危险 SQL，critical）
+   - Static Rule S011（N+1 循环查询，high）
+   - AI File Review（语义级别发现）
+
+### 常规测试场景
+
 | 场景 | PR 类型 | 预期结果 |
 |------|---------|---------|
 | 文档变更 | 仅 `.md` 文件 | 低风险，无发现 |
-| 业务逻辑变更 | 无测试的服务方法变更 | 中风险，标记 S015 |
+| 业务逻辑变更 | 无测试的服务方法变更 | 中风险，S015 |
 | 安全问题 | 硬编码密码、危险 SQL | 高风险，S005/S014 置信度 0.85 |
 | 混合 PR | 多种文件类型 | 因文件风险等级而异 |
+
+## Static Rules 页面
+
+访问 `http://localhost:8000/rules` 查看完整的静态规则库（S001-S015）。
+
+页面定位：**Rules are evidence, not limits** — 静态规则是确定性信号，AI 还会补充语义、上下文和跨文件一致性问题，不会强行将 AI finding 映射到规则 ID。
+
+## 评测看板
+
+访问 `http://localhost:8000/evaluation` 查看 Golden Evaluation 数据。
+
+> Golden Evaluation 主要衡量静态规则和置信度门控的稳定性，不度量 AI 语义 Review 的准确率。AI 语义 Review 的验证通过真实 PR 回放和人工检查完成。
