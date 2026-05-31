@@ -35,6 +35,13 @@ class GoldenCaseResult:
     github_ready_rule_ids: List[str]
     missing_rule_ids: List[str]
     unexpected_rule_ids: List[str]
+    baseline_candidate_count: int = 0
+    raw_finding_count: int = 0
+    invalid_finding_count: int = 0
+    deduped_finding_count: int = 0
+    visible_finding_count: int = 0
+    evidence_backed_count: int = 0
+    evidence_gate_retention_rate: float = 1.0
     finding_evidence: List[Dict[str, object]] = field(default_factory=list)
 
 
@@ -47,6 +54,14 @@ class GoldenEvaluationReport:
     false_negative_count: int
     visible_expected_count: int
     github_ready_count: int
+    baseline_candidate_count: int
+    raw_finding_count: int
+    invalid_finding_count: int
+    deduped_finding_count: int
+    visible_finding_count: int
+    evidence_backed_count: int
+    noise_filtered_count: int
+    evidence_gate_retention_rate: float
     precision: float
     recall: float
     rule_metrics: Dict[str, Dict[str, float]]
@@ -504,6 +519,16 @@ def run_golden_evaluation(cases: Optional[List[GoldenCase]] = None) -> GoldenEva
     false_negative_count = sum(len(result.missing_rule_ids) for result in case_results)
     visible_expected_count = sum(len(result.expected_visible_rule_ids) for result in _internal_results(case_results))
     github_ready_count = sum(len(result.github_ready_rule_ids) for result in case_results)
+    baseline_candidate_count = sum(result.baseline_candidate_count for result in case_results)
+    raw_finding_count = sum(result.raw_finding_count for result in case_results)
+    invalid_finding_count = sum(result.invalid_finding_count for result in case_results)
+    deduped_finding_count = sum(result.deduped_finding_count for result in case_results)
+    visible_finding_count = sum(result.visible_finding_count for result in case_results)
+    evidence_backed_count = sum(result.evidence_backed_count for result in case_results)
+    noise_filtered_count = max(0, baseline_candidate_count - visible_finding_count)
+    evidence_gate_retention_rate = round(
+        visible_finding_count / baseline_candidate_count, 4
+    ) if baseline_candidate_count else 1.0
 
     detected_total = true_positive_count + false_positive_count
     precision = round(true_positive_count / detected_total, 4) if detected_total else 1.0
@@ -518,6 +543,14 @@ def run_golden_evaluation(cases: Optional[List[GoldenCase]] = None) -> GoldenEva
         false_negative_count=false_negative_count,
         visible_expected_count=visible_expected_count,
         github_ready_count=github_ready_count,
+        baseline_candidate_count=baseline_candidate_count,
+        raw_finding_count=raw_finding_count,
+        invalid_finding_count=invalid_finding_count,
+        deduped_finding_count=deduped_finding_count,
+        visible_finding_count=visible_finding_count,
+        evidence_backed_count=evidence_backed_count,
+        noise_filtered_count=noise_filtered_count,
+        evidence_gate_retention_rate=evidence_gate_retention_rate,
         precision=precision,
         recall=recall,
         rule_metrics=rule_metrics,
@@ -530,6 +563,7 @@ def _evaluate_case(case: GoldenCase) -> GoldenCaseResult:
     engine.scanner = StaticScanner()
     rule_findings = ReviewEngine._run_static_scan(engine, case.changed_files)
     merged = ReviewEngine._merge_findings(engine, [], [], rule_findings)
+    counts = getattr(engine, "_pipeline_counts", {})
 
     detected = _rule_ids_from_rule_findings(rule_findings)
     visible = {finding.get("type", "") for finding in merged}
@@ -541,6 +575,9 @@ def _evaluate_case(case: GoldenCase) -> GoldenCaseResult:
 
     missing = case.expected_rule_ids - detected
     unexpected = detected - case.expected_rule_ids
+    baseline_candidate_count = counts.get("raw", len(merged))
+    visible_finding_count = counts.get("visible", len(merged))
+    evidence_backed_count = sum(1 for finding in merged if _has_evidence_backing(finding))
 
     return GoldenCaseResult(
         case_id=case.case_id,
@@ -553,7 +590,25 @@ def _evaluate_case(case: GoldenCase) -> GoldenCaseResult:
         github_ready_rule_ids=sorted(github_ready),
         missing_rule_ids=sorted(missing),
         unexpected_rule_ids=sorted(unexpected),
+        baseline_candidate_count=baseline_candidate_count,
+        raw_finding_count=counts.get("raw", len(merged)),
+        invalid_finding_count=counts.get("invalid", 0),
+        deduped_finding_count=counts.get("deduped", len(merged)),
+        visible_finding_count=visible_finding_count,
+        evidence_backed_count=evidence_backed_count,
+        evidence_gate_retention_rate=round(
+            visible_finding_count / baseline_candidate_count, 4
+        ) if baseline_candidate_count else 1.0,
         finding_evidence=_build_case_evidence(rule_findings, merged),
+    )
+
+
+def _has_evidence_backing(finding: dict) -> bool:
+    return bool(
+        finding.get("line_content")
+        or finding.get("confidence_reason")
+        or finding.get("source") == "static_rule"
+        or finding.get("changed_line_evidence")
     )
 
 
@@ -657,6 +712,10 @@ def _build_case_evidence(
         finding.get("type", ""): finding.get("severity", "low")
         for finding in merged_findings
     }
+    confidence_reason_by_rule = {
+        finding.get("type", ""): finding.get("confidence_reason", "")
+        for finding in merged_findings
+    }
 
     evidence = []
     for file_path, findings in rule_findings.items():
@@ -671,6 +730,10 @@ def _build_case_evidence(
                 "line_content": finding.line_content,
                 "source": "static_rule",
                 "confidence": confidence,
+                "confidence_reason": confidence_reason_by_rule.get(
+                    finding.rule_id,
+                    "Static rule matched changed-line evidence",
+                ),
                 "gate": "github_ready" if github_ready else "visible" if confidence >= 0.60 else "hidden",
                 "message": finding.message,
             })

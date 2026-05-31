@@ -264,6 +264,25 @@ class GitHubClient:
         except Exception:
             return []
 
+    def find_pr_comment_by_marker(self, owner: str, repo: str, number: int, marker: str) -> Optional[int]:
+        """Search PR comments for one containing a stable marker string.
+
+        Returns the comment ID if found, None otherwise. This is more robust
+        than relying on a stored comment_id, since it survives task deletion and
+        cross-task reuse.
+        """
+        url = f"{self.base_url}/repos/{owner}/{repo}/issues/{number}/comments"
+        try:
+            resp = httpx.get(url, headers=self._get_headers(), timeout=30)
+            resp.raise_for_status()
+            for comment in resp.json():
+                body = comment.get("body", "")
+                if marker in body:
+                    return comment.get("id")
+        except Exception:
+            return None
+        return None
+
     def create_pr_comment(self, owner: str, repo: str, number: int, body: str) -> Optional[int]:
         """Create a PR comment, returns comment id"""
         url = f"{self.base_url}/repos/{owner}/{repo}/issues/{number}/comments"

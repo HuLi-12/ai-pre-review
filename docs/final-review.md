@@ -175,10 +175,10 @@ user_service.py:42 → S005 hardcoded_password → 85% 置信度（GitHub 就绪
 
 - **框架**：FastAPI + SQLAlchemy + Jinja2 + Bootstrap 5
 - **静态规则**：15 条规则（S001–S015），仅扫描 patch
-- **测试**：5 个测试套件共 28 个单元测试
+- **测试**：15 个测试文件共 86 个测试
 - **CI**：GitHub Actions（Python 3.10，lint，test，import check）
 - **数据**：SQLite，4 个模型（Task、ChangedFile、Finding、Feedback）
-- **过程**：13+ 个 PR，分阶段交付（feat、fix、docs、test、ci、prototype）
+- **过程**：16+ 个 PR，分阶段交付（feat、fix、docs、test、ci、prototype）
 
 ### 未来方向：shadcn/ui 原型
 

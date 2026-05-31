@@ -43,7 +43,7 @@ def test_system_status_respects_manual_provider_override(monkeypatch):
     assert payload["ai"]["detected_provider"] == "deepseek"
 
 
-def test_home_page_shows_ai_runtime_status(monkeypatch):
+def test_home_page_keeps_ai_runtime_status_out_of_primary_entry(monkeypatch):
     monkeypatch.setattr(settings, "ai_provider", "auto")
     monkeypatch.setattr(settings, "ai_api_key", "secret-key")
     monkeypatch.setattr(settings, "ai_api_base", "https://api.deepseek.com/v1")
@@ -51,10 +51,11 @@ def test_home_page_shows_ai_runtime_status(monkeypatch):
     monkeypatch.setattr(settings, "ai_deep_model", "deepseek-v4-flash")
 
     with TestClient(app) as client:
-        response = client.get("/")
+        home_response = client.get("/")
+        status_response = client.get("/api/system/status")
 
-    assert response.status_code == 200
-    assert "AI Runtime" in response.text
-    assert "deepseek-v4-flash" in response.text
-    assert "OpenAI-compatible" in response.text
-    assert "Key configured" in response.text
+    assert home_response.status_code == 200
+    assert status_response.status_code == 200
+    assert "AI Runtime" not in home_response.text
+    assert "deepseek-v4-flash" not in home_response.text
+    assert status_response.json()["ai"]["model"] == "deepseek-v4-flash"

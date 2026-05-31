@@ -47,10 +47,17 @@ def test_run_golden_evaluation_quantifies_quality_and_confidence_gates():
     assert report.recall == 1.0
     assert report.visible_expected_count == report.expected_total
     assert report.github_ready_count >= 2
+    assert report.baseline_candidate_count >= report.visible_finding_count
+    assert report.raw_finding_count >= report.visible_finding_count
+    assert report.invalid_finding_count == 0
+    assert report.deduped_finding_count >= report.visible_finding_count
+    assert report.evidence_backed_count == report.visible_finding_count
+    assert report.evidence_gate_retention_rate == 1.0
 
     docs_case = next(case for case in report.cases if case.case_id == "docs_fastapi_example_control")
     assert docs_case.unexpected_rule_ids == []
     assert docs_case.detected_rule_ids == []
+    assert docs_case.baseline_candidate_count == 0
 
 
 def test_golden_evaluation_reports_rule_level_metrics():
@@ -86,3 +93,7 @@ def test_real_pr_replay_evaluation_reports_metrics_and_evidence():
     assert "S015" in localtunnel_case.detected_rule_ids
     assert localtunnel_case.finding_evidence
     assert localtunnel_case.finding_evidence[0]["gate"] in {"visible", "github_ready"}
+    assert localtunnel_case.raw_finding_count >= localtunnel_case.visible_finding_count
+    assert localtunnel_case.invalid_finding_count == 0
+    assert localtunnel_case.evidence_backed_count == localtunnel_case.visible_finding_count
+    assert "confidence_reason" in localtunnel_case.finding_evidence[0]

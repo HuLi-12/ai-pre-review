@@ -1,4 +1,5 @@
 from app.ai_client import AIClient
+from app.ai_provider import ModelConfig, OpenAICompatibleAdapter
 
 
 def test_ai_client_without_api_key_returns_static_safe_fallback():
@@ -44,7 +45,17 @@ def test_ai_client_limits_completion_tokens_for_provider_stability():
             self.chat = FakeChat()
 
     fake = FakeClient()
-    client.client = fake
+    config = ModelConfig(
+        provider="openai-compatible",
+        detected_provider="openai-compatible",
+        api_key="secret",
+        base_url="https://compat.example.com/v1",
+        model=client.model,
+        deep_model=client.deep_model,
+        timeout_seconds=20,
+        max_tokens=800,
+    )
+    client.adapter = OpenAICompatibleAdapter(config, sdk_client=fake)
 
     assert client._call_llm("system", "user") == '{"ok": true}'
     assert fake.chat.completions.kwargs["max_tokens"] > 0
@@ -64,7 +75,17 @@ def test_ai_client_provider_error_falls_back_safely():
     class BrokenClient:
         chat = BrokenChat()
 
-    client.client = BrokenClient()
+    config = ModelConfig(
+        provider="openai-compatible",
+        detected_provider="openai-compatible",
+        api_key="secret",
+        base_url="https://compat.example.com/v1",
+        model=client.model,
+        deep_model=client.deep_model,
+        timeout_seconds=20,
+        max_tokens=800,
+    )
+    client.adapter = OpenAICompatibleAdapter(config, sdk_client=BrokenClient())
 
     summary = client.summarize_pr("Fix auth", "", "", "app/auth.py (modified, +2/-1)")
     file_review = client.review_file("app/auth.py", "@@\n+pass", "", "", "")

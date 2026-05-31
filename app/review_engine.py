@@ -1,8 +1,10 @@
 import asyncio
+import json
 import re
 from typing import List, Optional, Dict, Any, Set
 from dataclasses import dataclass, field
 
+import httpx
 from sqlalchemy.orm import Session
 
 from app.github_client import GitHubClient, ChangedFile, PRInfo
@@ -30,10 +32,13 @@ class ReviewResult:
     deduped_finding_count: int = 0
     visible_finding_count: int = 0
     github_ready_count: int = 0
+    invalid_finding_count: int = 0
 
 
 class ReviewEngine:
     """Multi-stage AI Review orchestration engine with risk-based prioritization."""
+
+    AI_SEVERITIES = {"critical", "high", "medium", "low"}
 
     def __init__(self, github_token: Optional[str] = None):
         self.github = GitHubClient(token=github_token)
@@ -46,6 +51,8 @@ class ReviewEngine:
         """Execute full review pipeline"""
         result = ReviewResult()
         owner, repo, number = task.repo_owner, task.repo_name, task.pr_number
+        fallbacks = {}
+        pipeline_stages = []
 
         try:
             # ---- Stage 1: Fetch PR Info ----
@@ -53,6 +60,10 @@ class ReviewEngine:
             pr_info = self.github.get_pr_info(owner, repo, number)
             changed_files = self.github.get_changed_files(owner, repo, number, head_sha=pr_info.commit_sha)
             task.commit_sha = pr_info.commit_sha
+
+            pipeline_stages.append("FETCHING_PR")
+            if "public diff fallback" in (pr_info.description or "").lower():
+                fallbacks["public_diff"] = True
 
             # Save changed files to DB
             self._save_changed_files(task.id, changed_files, db)
@@ -71,24 +82,31 @@ class ReviewEngine:
             await self._update_progress(task, db, "STATIC_SCAN", 30)
             rule_findings = self._run_static_scan(changed_files)
             self._changed_line_index = self._build_changed_line_index(changed_files)
+            pipeline_stages.append("STATIC_SCAN")
 
             # ---- Stage 4: Risk Scoring & AI Review ----
             await self._update_progress(task, db, "AI_PR_SUMMARY", 40)
             summary = await self._summarize_pr(pr_info, changed_files)
+            pipeline_stages.append("AI_PR_SUMMARY")
+            if summary.get("one_line_summary", "").startswith("AI summary unavailable"):
+                fallbacks["ai_summary"] = True
 
             # File-level analysis with risk-based prioritization
             await self._update_progress(task, db, "AI_FILE_REVIEW", 55)
             file_findings = await self._review_files_prioritized(
                 changed_files, review_context, rule_findings
             )
+            pipeline_stages.append("AI_FILE_REVIEW")
 
             # Cross-file analysis (only if enough files changed)
             await self._update_progress(task, db, "AI_CROSS_FILE", 70)
             cross_findings = await self._cross_file_analysis(changed_files, review_context, file_findings)
+            pipeline_stages.append("AI_CROSS_FILE")
 
             # ---- Stage 5: Merge, Dedup & Confidence ----
             await self._update_progress(task, db, "MERGING_RESULTS", 85)
             merged = self._merge_findings(file_findings, cross_findings, rule_findings)
+            pipeline_stages.append("MERGING_RESULTS")
 
             # Persist real pipeline metrics
             counts = getattr(self, '_pipeline_counts', {})
@@ -96,10 +114,12 @@ class ReviewEngine:
             task.deduped_finding_count = counts.get("deduped", 0)
             task.visible_finding_count = counts.get("visible", len(merged))
             task.github_ready_count = counts.get("github_ready", 0)
+            task.invalid_finding_count = counts.get("invalid", 0)
 
             # ---- Stage 6: Generate Report ----
             await self._update_progress(task, db, "GENERATING_REPORT", 95)
             report = self.report_gen.generate(summary, merged)
+            pipeline_stages.append("GENERATING_REPORT")
 
             # Save findings to DB
             self._save_findings(task.id, merged, db)
@@ -117,34 +137,56 @@ class ReviewEngine:
             result.deduped_finding_count = counts.get("deduped", 0)
             result.visible_finding_count = counts.get("visible", len(merged))
             result.github_ready_count = counts.get("github_ready", 0)
+            result.invalid_finding_count = counts.get("invalid", 0)
 
             task.summary = report.markdown_summary
             task.risk_level = report.risk_level
+            pipeline_stages.append("DONE")
+            task.fallback_flags = json.dumps(fallbacks) if fallbacks else None
+            task.pipeline_details = json.dumps(pipeline_stages) if pipeline_stages else None
             db.commit()
 
             # ---- Stage 7: Auto Comment to GitHub (if enabled) ----
             if task.auto_comment and merged:
-                try:
-                    comment = self.report_gen.generate_github_comment(report)
-                    if not task.comment_id:
-                        task.comment_id = self._find_reusable_comment_id(task, db)
-                    if task.comment_id:
-                        ok = self.github.update_pr_comment(owner, repo, task.comment_id, comment)
-                        task.current_step = "COMMENT_UPDATED" if ok else "COMMENT_FAILED"
-                    else:
-                        comment_id = self.github.create_pr_comment(owner, repo, number, comment)
-                        if comment_id:
-                            task.comment_id = comment_id
-                            task.current_step = "COMMENTED"
-                        else:
-                            task.current_step = "COMMENT_FAILED"
+                if task.dry_run:
+                    task.current_step = "DRY_RUN"
                     db.commit()
-                except Exception as e:
-                    print(f"Failed to post GitHub comment: {e}")
+                else:
+                    try:
+                        comment = self.report_gen.generate_github_comment(report)
+
+                        # Marker-based lookup (most robust — survives comment deletion)
+                        if not task.comment_id:
+                            task.comment_id = self.github.find_pr_comment_by_marker(
+                                owner, repo, number, ReportGenerator.COMMENT_MARKER
+                            )
+                        # Fallback: DB-based lookup (previous task's comment_id for same PR)
+                        if not task.comment_id:
+                            task.comment_id = self._find_reusable_comment_id(task, db)
+
+                        if task.comment_id:
+                            ok = self.github.update_pr_comment(owner, repo, task.comment_id, comment)
+                            task.current_step = "COMMENT_UPDATED" if ok else "COMMENT_FAILED"
+                        else:
+                            comment_id = self.github.create_pr_comment(owner, repo, number, comment)
+                            if comment_id:
+                                task.comment_id = comment_id
+                                task.current_step = "COMMENTED"
+                            else:
+                                task.current_step = "COMMENT_FAILED"
+                        db.commit()
+                    except Exception as e:
+                        print(f"Failed to post GitHub comment: {e}")
 
         except Exception as e:
             task.status = "FAILED"
-            task.error_message = str(e)
+            task.error_type = self._categorize_error(e, task.current_step)
+            task.error_message = str(e)[:500]
+            if fallbacks:
+                task.fallback_flags = json.dumps(fallbacks)
+            if pipeline_stages:
+                pipeline_stages.append(f"FAILED:{task.error_type}")
+                task.pipeline_details = json.dumps(pipeline_stages)
             db.commit()
             raise
 
@@ -156,6 +198,46 @@ class ReviewEngine:
         task.progress = progress
         task.current_step = step
         db.commit()
+
+    @staticmethod
+    def _categorize_error(error: Exception, step: Optional[str]) -> str:
+        """Categorize an exception into a stable error type for task.error_type."""
+        if isinstance(error, httpx.TimeoutException):
+            return "NETWORK_TIMEOUT"
+        if isinstance(error, httpx.ConnectError):
+            return "NETWORK_ERROR"
+        if isinstance(error, httpx.HTTPStatusError):
+            status = error.response.status_code
+            message = ""
+            try:
+                message = str(error.response.json().get("message", ""))
+            except Exception:
+                message = getattr(error.response, "text", "") or ""
+            message_lower = message.lower()
+            if status == 401:
+                return "GITHUB_AUTH_ERROR"
+            if status == 403:
+                remaining = error.response.headers.get("X-RateLimit-Remaining")
+                if remaining == "0" or "rate limit" in message_lower:
+                    return "GITHUB_RATE_LIMIT"
+                if (
+                    "resource not accessible" in message_lower
+                    or "permission" in message_lower
+                    or "must have" in message_lower
+                    or "forbidden" in message_lower
+                ):
+                    return "GITHUB_PERMISSION_ERROR"
+                return "GITHUB_FORBIDDEN"
+            if status == 404:
+                return "GITHUB_NOT_FOUND_OR_PRIVATE"
+            return "GITHUB_API_ERROR"
+        if isinstance(error, httpx.RequestError):
+            return "NETWORK_ERROR"
+        if isinstance(error, ValueError):
+            return "VALIDATION_ERROR"
+        if step and step.startswith("AI_"):
+            return "AI_PROVIDER_ERROR"
+        return "INTERNAL_ERROR"
 
     @staticmethod
     def _find_reusable_comment_id(task: PRReviewTask, db: Session) -> Optional[int]:
@@ -487,6 +569,53 @@ class ReviewEngine:
         except (TypeError, ValueError):
             return 0
 
+    @staticmethod
+    def _coerce_model_confidence(confidence: Any) -> Optional[float]:
+        try:
+            value = float(confidence)
+        except (TypeError, ValueError):
+            return None
+        return max(0.0, min(1.0, value))
+
+    def _normalize_ai_file_finding(self, finding: Any) -> Optional[dict]:
+        """Validate and normalize a model-produced file finding."""
+        if not isinstance(finding, dict):
+            return None
+
+        file_path = str(finding.get("file", "")).strip()
+        title = str(finding.get("title", "")).strip()
+        reason = str(finding.get("reason", "")).strip()
+        suggestion = str(finding.get("suggestion", "")).strip()
+        severity = str(finding.get("severity", "")).strip().lower()
+        line = self._coerce_line_number(finding.get("line"))
+
+        if not file_path or not title or not reason or not suggestion:
+            return None
+        if severity not in self.AI_SEVERITIES:
+            return None
+        if line <= 0:
+            return None
+        if "confidence" not in finding:
+            return None
+
+        model_confidence = self._coerce_model_confidence(finding.get("confidence"))
+        if model_confidence is None:
+            return None
+
+        normalized = dict(finding)
+        normalized.update({
+            "file": file_path,
+            "line": line,
+            "severity": severity,
+            "title": title,
+            "reason": reason,
+            "suggestion": suggestion,
+            "model_confidence": model_confidence,
+            "source": "ai_file",
+        })
+        normalized.pop("confidence", None)
+        return normalized
+
     def _attach_changed_line_evidence(self, finding: dict) -> dict:
         """Anchor AI file findings to nearby changed lines when possible."""
         if finding.get("source") != "ai_file":
@@ -546,10 +675,15 @@ class ReviewEngine:
                     "confidence_reason": "Deterministic static rule match with changed-line evidence",
                 })
 
+        invalid_ai_count = 0
+
         # Add AI file findings
         for fd in file_findings:
-            fd["source"] = "ai_file"
-            merged.append(self._attach_changed_line_evidence(fd))
+            normalized = self._normalize_ai_file_finding(fd)
+            if normalized is None:
+                invalid_ai_count += 1
+                continue
+            merged.append(self._attach_changed_line_evidence(normalized))
 
         # Add cross-file findings
         for fd in cross_findings:
@@ -597,14 +731,20 @@ class ReviewEngine:
         # ---- Confidence threshold filtering ----
         filtered = [f for f in final_findings if should_show_in_report(f.get("confidence", 0) or 0)]
 
+        # Mark github_ready flag for each finding (used by report_generator for GitHub comments)
+        for f in filtered:
+            f["github_ready"] = should_comment_to_github(
+                f.get("confidence", 0) or 0,
+                f.get("severity", "low"),
+            )
+
         # Save pipeline counts for cockpit metrics
         self._pipeline_counts = {
-            "raw": len(merged),
+            "raw": len(merged) + invalid_ai_count,
             "deduped": len(final_findings),
             "visible": len(filtered),
-            "github_ready": sum(1 for f in filtered
-                                if should_comment_to_github(f.get("confidence", 0) or 0,
-                                                            f.get("severity", "low"))),
+            "github_ready": sum(1 for f in filtered if f["github_ready"]),
+            "invalid": invalid_ai_count,
         }
 
         # Sort by severity then confidence

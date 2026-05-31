@@ -11,6 +11,13 @@ from app.review_engine import ReviewEngine
 
 router = APIRouter(prefix="/api/tasks", tags=["tasks"])
 
+TERMINAL_REVIEW_STEPS = {
+    "DRY_RUN",
+    "COMMENTED",
+    "COMMENT_UPDATED",
+    "COMMENT_FAILED",
+}
+
 
 @router.post("", response_model=TaskResponse)
 async def create_task(req: CreateTaskRequest, db: Session = Depends(get_db)):
@@ -26,6 +33,7 @@ async def create_task(req: CreateTaskRequest, db: Session = Depends(get_db)):
         pr_number=number,
         pr_url=req.pr_url,
         auto_comment=req.auto_comment,
+        dry_run=1 if req.dry_run else 0,
         status="PENDING",
     )
     db.add(task)
@@ -54,21 +62,29 @@ async def _run_review_async(task_id: int, github_token: Optional[str]):
         engine = ReviewEngine(github_token=github_token)
         await engine.run_review(task, db)
 
-        task.status = "DONE"
-        task.progress = 100
-        task.current_step = "COMPLETED"
+        _mark_task_done(task)
         db.commit()
     except Exception as e:
         try:
             task = db.query(PRReviewTask).filter(PRReviewTask.id == task_id).first()
             if task:
                 task.status = "FAILED"
-                task.error_message = str(e)
+                if not task.error_type:
+                    task.error_type = "INTERNAL_ERROR"
+                if not task.error_message:
+                    task.error_message = str(e)[:500]
                 db.commit()
         except Exception:
             pass
     finally:
         db.close()
+
+
+def _mark_task_done(task: PRReviewTask):
+    task.status = "DONE"
+    task.progress = 100
+    if task.current_step not in TERMINAL_REVIEW_STEPS:
+        task.current_step = "COMPLETED"
 
 
 @router.get("/{task_id}", response_model=TaskResponse)
@@ -82,4 +98,8 @@ def get_task(task_id: int, db: Session = Depends(get_db)):
         status=task.status,
         progress=task.progress,
         current_step=task.current_step,
+        error_type=task.error_type,
+        error_message=task.error_message,
+        fallback_flags=task.fallback_flags,
+        pipeline_details=task.pipeline_details,
     )

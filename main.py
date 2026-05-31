@@ -1,5 +1,7 @@
 import uvicorn
+from inspect import signature
 from functools import lru_cache
+from datetime import datetime, timedelta
 from contextlib import asynccontextmanager
 from fastapi import FastAPI, Request
 from fastapi.responses import HTMLResponse, RedirectResponse
@@ -11,13 +13,59 @@ from config import settings
 from app.database import init_db, get_db, SessionLocal
 from app.golden_evaluation import run_golden_evaluation, run_real_pr_replay_evaluation
 from app.models import PRReviewTask, PRChangedFile, PRReviewFinding
+from app.rule_catalog import get_rule_catalog
 from app.routers import evaluation, tasks, reports
 from app.system_status import build_system_status
+
+
+ACTIVE_TASK_STATUSES = {
+    "PENDING",
+    "FETCHING_PR",
+    "BUILDING_CONTEXT",
+    "STATIC_SCAN",
+    "AI_PR_SUMMARY",
+    "AI_FILE_REVIEW",
+    "AI_CROSS_FILE",
+    "MERGING_RESULTS",
+    "GENERATING_REPORT",
+}
+
+
+def mark_stale_active_tasks_failed(db, *, force: bool = False, max_age_minutes: int = 30):
+    cutoff = datetime.utcnow() - timedelta(minutes=max_age_minutes)
+    query = db.query(PRReviewTask).filter(PRReviewTask.status.in_(ACTIVE_TASK_STATUSES))
+    if not force:
+        query = query.filter(PRReviewTask.updated_at < cutoff)
+
+    count = 0
+    for task in query.all():
+        task.status = "FAILED"
+        task.progress = task.progress or 0
+        task.error_type = "SERVER_RESTART" if force else "STALE_TASK"
+        task.error_message = (
+            "服务重启导致后台任务中断，请重新提交评审。"
+            if force
+            else "后台任务已中断或超时，请重新提交评审。"
+        )
+        count += 1
+    if count:
+        db.commit()
+    return count
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     init_db()
+
+    # Background asyncio tasks do not survive process restarts.
+    db = SessionLocal()
+    try:
+        mark_stale_active_tasks_failed(db, force=True)
+    except Exception:
+        db.rollback()
+    finally:
+        db.close()
+
     yield
 
 
@@ -40,6 +88,16 @@ app.include_router(evaluation.router)
 templates = Jinja2Templates(directory="templates")
 import json
 templates.env.filters["from_json"] = lambda s: json.loads(s) if s else []
+_REQUEST_FIRST_TEMPLATE_RESPONSE = "request" in signature(templates.TemplateResponse).parameters
+
+
+def render_template(request: Request, name: str, context: dict):
+    """Render templates across old and new Starlette TemplateResponse signatures."""
+    context = dict(context)
+    context.setdefault("request", request)
+    if _REQUEST_FIRST_TEMPLATE_RESPONSE:
+        return templates.TemplateResponse(request, name, context)
+    return templates.TemplateResponse(name, context)
 
 
 @lru_cache(maxsize=1)
@@ -54,12 +112,16 @@ def cached_real_pr_replay_evaluation():
 
 @app.get("/", response_class=HTMLResponse)
 def index(request: Request):
-    return templates.TemplateResponse("index.html", {
-        "request": request,
+    return render_template(request, "index.html", {
         "golden_eval": cached_golden_evaluation(),
         "real_pr_replay": cached_real_pr_replay_evaluation(),
         "system_status": build_system_status(),
     })
+
+
+@app.get("/about", response_class=HTMLResponse)
+def about_page(request: Request):
+    return render_template(request, "about.html", {})
 
 
 @app.get("/api/system/status")
@@ -73,8 +135,7 @@ def evaluation_page(request: Request):
     real_pr_report = cached_real_pr_replay_evaluation()
     ordinary_baseline_count = report.expected_total + report.false_positive_count
     gate_filtered_count = max(0, ordinary_baseline_count - report.visible_expected_count)
-    return templates.TemplateResponse("evaluation.html", {
-        "request": request,
+    return render_template(request, "evaluation.html", {
         "golden_eval": report,
         "real_pr_replay": real_pr_report,
         "ordinary_baseline_count": ordinary_baseline_count,
@@ -86,6 +147,7 @@ def evaluation_page(request: Request):
 def task_history(request: Request, page: int = 1, q: str = "", status: str = ""):
     db = SessionLocal()
     try:
+        mark_stale_active_tasks_failed(db)
         query = db.query(PRReviewTask)
         if q:
             query = query.filter(PRReviewTask.pr_url.ilike(f"%{q}%"))
@@ -102,10 +164,9 @@ def task_history(request: Request, page: int = 1, q: str = "", status: str = "")
         statuses = ["PENDING", "DONE", "FAILED", "FETCHING_PR", "BUILDING_CONTEXT",
                      "STATIC_SCAN", "AI_PR_SUMMARY", "AI_FILE_REVIEW", "AI_CROSS_FILE",
                      "MERGING_RESULTS", "GENERATING_REPORT", "COMMENTED",
-                     "COMMENT_UPDATED", "COMMENT_FAILED"]
+                     "COMMENT_UPDATED", "COMMENT_FAILED", "DRY_RUN"]
 
-        return templates.TemplateResponse("task_history.html", {
-            "request": request,
+        return render_template(request, "task_history.html", {
             "tasks": tasks,
             "total": total,
             "page": page,
@@ -120,24 +181,8 @@ def task_history(request: Request, page: int = 1, q: str = "", status: str = "")
 
 @app.get("/rules", response_class=HTMLResponse)
 def rules_page(request: Request):
-    rules = [
-        {"id": "S001", "name": "hardcoded_print", "severity": "high", "description": "检测遗留的调试输出语句，如 print、console.log、System.out.println 等。这些语句不应出现在生产代码中。", "detection": "static", "bad_code": 'print("debug:", data)\nconsole.log("user:", user)', "good_code": "import logging\nlogger = logging.getLogger(__name__)\nlogger.debug(\"user: %s\", user)"},
-        {"id": "S002", "name": "todo_fixme", "severity": "low", "description": "检测代码中遗留的 TODO 或 FIXME 注释。建议在合并前确认这些待办项是否已处理。", "detection": "static", "bad_code": "# TODO: handle edge case\n// FIXME: this is a hack", "good_code": "# 已处理或创建 Issue 跟踪"},
-        {"id": "S003", "name": "empty_catch", "severity": "high", "description": "检测空的 catch 块。异常被静默吞掉会导致难以排查的 Bug，至少应记录异常信息。", "detection": "static", "bad_code": "try:\n    do_something()\nexcept Exception:\n    pass", "good_code": "try:\n    do_something()\nexcept Exception as e:\n    logger.error(\"failed: %s\", e)"},
-        {"id": "S004", "name": "sensitive_log", "severity": "high", "description": "检测是否在日志中记录了敏感信息（密码、密钥、Token 等）。避免将凭据写入日志。", "detection": "static", "bad_code": 'logger.info("password: %s", password)', "good_code": 'logger.info("login success: user=%s", user)'},
-        {"id": "S005", "name": "hardcoded_password", "severity": "critical", "description": "检测硬编码的密码、密钥或 API Token。凭据应通过环境变量或密钥管理服务注入。", "detection": "static", "bad_code": 'password = "123456"\napi_key = "sk-xxxxx"', "good_code": "password = os.getenv(\"DB_PASSWORD\")\napi_key = os.getenv(\"API_KEY\")"},
-        {"id": "S006", "name": "missing_null_check", "severity": "medium", "description": "检测方法调用结果是否缺少空值检查。由 AI 分析调用链判断可能为空的返回值。", "detection": "ai", "bad_code": "user = get_user(id)\nuser.name  # user may be None", "good_code": "user = get_user(id)\nif user:\n    print(user.name)"},
-        {"id": "S007", "name": "large_method", "severity": "medium", "description": "检测被 PR 修改的方法是否过长（超过 80 行）。过长的方法应当拆分为多个小函数。", "detection": "static", "bad_code": "# > 80 lines in one method", "good_code": "# Split into smaller helper functions"},
-        {"id": "S008", "name": "missing_auth_check", "severity": "high", "description": "检测新增的 API 端点是否缺少身份验证/授权注解。所有新 API 应确保有权限控制。", "detection": "static", "bad_code": "@app.post(\"/admin/delete\")\ndef delete_user():  # no auth!", "good_code": "@app.post(\"/admin/delete\")\n@require_auth\ndef delete_user():"},
-        {"id": "S009", "name": "missing_validation", "severity": "medium", "description": "检测新增 API 端点是否缺少参数校验注解（@Valid、@NotNull 等）。", "detection": "static", "bad_code": "@app.post(\"/user\")\ndef create_user(name: str):  # no validation", "good_code": "@app.post(\"/user\")\ndef create_user(@NotBlank name: str):"},
-        {"id": "S010", "name": "broad_exception", "severity": "high", "description": "检测是否捕获了过于宽泛的异常（Exception 或 Throwable）。应捕获具体异常类型。", "detection": "static", "bad_code": "try:\n    process()\nexcept Exception:\n    pass", "good_code": "try:\n    process()\nexcept ValueError:\n    handle_value_error()"},
-        {"id": "S011", "name": "loop_db_call", "severity": "high", "description": "检测循环体内是否包含数据库查询或 API 调用，可能导致 N+1 性能问题。", "detection": "static", "bad_code": "for user_id in ids:\n    user = db.query(User).get(user_id)", "good_code": "users = db.query(User).filter(User.id.in_(ids)).all()"},
-        {"id": "S012", "name": "no_pagination", "severity": "medium", "description": "检测列表查询接口是否缺少分页或 LIMIT 限制。无分页的查询可能导致性能问题或 OOM。", "detection": "ai", "bad_code": "@app.get(\"/users\")\ndef list_users():\n    return db.query(User).all()", "good_code": "@app.get(\"/users\")\ndef list_users(page: int, size: int):\n    return db.query(User).offset(page).limit(size).all()"},
-        {"id": "S013", "name": "transaction_risk", "severity": "high", "description": "检测一个方法内多次数据库写操作但缺少事务包裹。多步写入应放在同一事务中。", "detection": "ai", "bad_code": "def transfer():\n    db.execute(\"UPDATE account SET ...\")\n    db.execute(\"UPDATE account SET ...\")", "good_code": "def transfer():\n    with db.transaction():\n        db.execute(\"UPDATE account SET ...\")\n        db.execute(\"UPDATE account SET ...\")"},
-        {"id": "S014", "name": "unsafe_delete_or_update", "severity": "critical", "description": "检测 SQL 的 DELETE/UPDATE 语句是否缺少 WHERE 条件。无条件的更新/删除可能导致数据丢失。", "detection": "static", "bad_code": "DELETE FROM users\nUPDATE account SET balance = 0", "good_code": "DELETE FROM users WHERE id = ?\nUPDATE account SET balance = 0 WHERE id = ?"},
-        {"id": "S015", "name": "test_missing", "severity": "medium", "description": "核心源码文件变更但对应的测试文件未更新。建议为新增/修改的逻辑补充测试用例。", "detection": "ai", "bad_code": "Modified: src/service.py  (no test update)", "good_code": "Modified: src/service.py, tests/test_service.py"},
-    ]
-    return templates.TemplateResponse("rules.html", {"request": request, "rules": rules})
+    rules = get_rule_catalog()
+    return render_template(request, "rules.html", {"rules": rules})
 
 
 @app.get("/tasks/{task_id}", response_class=HTMLResponse)
@@ -147,8 +192,7 @@ def task_progress(request: Request, task_id: int):
         task = db.query(PRReviewTask).filter(PRReviewTask.id == task_id).first()
         if not task:
             return HTMLResponse("Task not found", status_code=404)
-        return templates.TemplateResponse("task_progress.html", {
-            "request": request,
+        return render_template(request, "task_progress.html", {
             "task": task,
         })
     finally:
@@ -211,8 +255,7 @@ def view_report(request: Request, task_id: int):
             review_decision = "Ready to merge"
             decision_reason = "未发现高置信阻塞问题"
 
-        return templates.TemplateResponse("report.html", {
-            "request": request,
+        return render_template(request, "report.html", {
             "task": task,
             "findings": findings,
             "files": files,
@@ -228,6 +271,7 @@ def view_report(request: Request, task_id: int):
                 "deduped_count": task.deduped_finding_count or len(findings),
                 "visible_count": task.visible_finding_count or len(findings),
                 "github_ready": task.github_ready_count or github_ready,
+                "invalid_count": task.invalid_finding_count or 0,
                 "review_decision": review_decision,
                 "decision_reason": decision_reason,
             },

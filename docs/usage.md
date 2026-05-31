@@ -55,6 +55,13 @@ AI_DEEP_MODEL=provider-strong-model
 
 兼容说明：当前客户端使用 OpenAI-compatible Chat Completions 协议。DeepSeek、OpenAI、以及提供 `/v1/chat/completions` 兼容接口的服务可以直接配置；不兼容该协议的原生 SDK 供应商需要后续新增 adapter。
 
+代码层面已经拆出 provider adapter：
+
+- `ModelConfig`：统一描述 provider、base URL、模型名、超时和输出长度。
+- `ProviderStatus`：只暴露安全运行状态，不包含 API Key。
+- `OpenAICompatibleAdapter`：封装 `/v1/chat/completions` 调用，DeepSeek、OpenAI 和兼容服务共用这一层。
+- `AIClient`：只依赖 adapter 的 `complete()` 方法，后续接入 Gemini/Anthropic 原生 API 时可以新增 adapter，不需要改评审编排逻辑。
+
 ## 2. 启动服务
 
 ```bash
@@ -132,9 +139,25 @@ FETCHING_PR
 
 AI finding 还会经过 changed-line evidence gate：文件级 AI 问题需要尽量锚定到 PR 新增行或其附近。如果模型给出的行号不在 changed hunk 附近，系统会降低置信度并默认过滤低证据结果；如果能绑定到 changed line，报告会保留对应代码片段和置信度原因。这是为了减少普通 diff-to-LLM 容易出现的“合理但无证据”误报。
 
+模型输出还会先经过结构校验：文件级 finding 必须包含有效的 `file`、正整数 `line`、`severity`、`title`、`reason`、`suggestion` 和数值型 `confidence`。`severity` 只接受 `critical/high/medium/low`，模型置信度会被裁剪到 `0.0-1.0`，不合格 finding 会计入 `invalid_finding_count`，不会进入去重、置信度门控或报告展示。
+
 ## 5. 使用 Golden Evaluation
 
 Golden Evaluation 是本项目的质量评测集，用固定 PR/diff 样例衡量系统是否能正确发现问题，并控制误报。
+
+评测结果不只统计 precision/recall，还会返回 pipeline 级质量指标：
+
+| 指标 | 含义 |
+| --- | --- |
+| `baseline_candidate_count` | 普通 diff-to-LLM 可能直接抛给 reviewer 的候选建议数 |
+| `raw_finding_count` | 规则/模型原始 finding 数 |
+| `invalid_finding_count` | 被结构校验过滤的无效模型输出数 |
+| `deduped_finding_count` | 去重后的 finding 数 |
+| `visible_finding_count` | 经过置信度和 evidence gate 后仍展示的 finding 数 |
+| `evidence_backed_count` | 有 changed-line、静态规则或置信度原因支撑的 finding 数 |
+| `evidence_gate_retention_rate` | evidence gate 后保留率，用来观察门控是否过严或过松 |
+
+这些指标用于说明系统相对普通 diff-to-LLM 的差异：不是把模型所有建议直接展示，而是先结构校验、去重、绑定证据、计算置信度，再决定是否进入报告或 GitHub 评论候选。
 
 评测边界需要明确：这里的 deterministic evaluation 主要衡量静态规则检测、去重、置信度门控和 GitHub-ready gating，不直接调用 LLM，因此不代表完整语义 AI Review 的全部质量。LLM 语义审查效果应结合真实 PR demo 和人工复核一起展示。
 
