@@ -12,6 +12,7 @@ from app.database import init_db, get_db, SessionLocal
 from app.golden_evaluation import run_golden_evaluation, run_real_pr_replay_evaluation
 from app.models import PRReviewTask, PRChangedFile, PRReviewFinding
 from app.routers import evaluation, tasks, reports
+from app.system_status import build_system_status
 
 
 @asynccontextmanager
@@ -57,7 +58,13 @@ def index(request: Request):
         "request": request,
         "golden_eval": cached_golden_evaluation(),
         "real_pr_replay": cached_real_pr_replay_evaluation(),
+        "system_status": build_system_status(),
     })
+
+
+@app.get("/api/system/status")
+def system_status():
+    return build_system_status()
 
 
 @app.get("/evaluation", response_class=HTMLResponse)

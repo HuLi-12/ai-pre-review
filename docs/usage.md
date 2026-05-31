@@ -14,9 +14,13 @@ pip install -r requirements.txt
 
 ```bash
 GITHUB_TOKEN=ghp_xxx
+AI_PROVIDER=auto
 AI_API_KEY=sk_xxx
-AI_BASE_URL=https://api.openai.com/v1
+AI_API_BASE=https://api.openai.com/v1
 AI_MODEL=gpt-4o-mini
+AI_DEEP_MODEL=gpt-4o
+AI_TIMEOUT_SECONDS=45
+AI_MAX_TOKENS=1600
 ```
 
 说明：
@@ -24,6 +28,32 @@ AI_MODEL=gpt-4o-mini
 - 不配置 `GITHUB_TOKEN` 时，公开 PR 仍可通过 GitHub API 或 `.diff` fallback 尝试分析。
 - 不配置 `AI_API_KEY` 时，系统会使用安全 fallback，仍能展示静态规则、风险评分和基础报告。
 - 如果要自动评论到 GitHub PR，需要提供有仓库评论权限的 GitHub Token。
+
+DeepSeek 示例配置：
+
+```bash
+AI_API_KEY=你的 DeepSeek API Key
+AI_PROVIDER=auto
+AI_API_BASE=https://api.deepseek.com/v1
+AI_MODEL=deepseek-v4-flash
+AI_DEEP_MODEL=deepseek-v4-flash
+AI_TIMEOUT_SECONDS=20
+AI_MAX_TOKENS=800
+```
+
+`AI_PROVIDER=auto` 会根据 `AI_API_BASE` 自动识别 DeepSeek、OpenAI 或其他 OpenAI-compatible 服务。也可以显式设置为 `deepseek`、`openai` 或 `openai-compatible`。`AI_MODEL` 用于 PR 总结，`AI_DEEP_MODEL` 用于文件级和跨文件审查。`AI_TIMEOUT_SECONDS` 和 `AI_MAX_TOKENS` 用来控制响应速度；模型超时或失败时，系统会自动回退到静态规则结果，避免任务卡死。
+
+其他 OpenAI-compatible 模型服务示例：
+
+```bash
+AI_PROVIDER=openai-compatible
+AI_API_KEY=你的兼容服务 API Key
+AI_API_BASE=https://your-provider.example.com/v1
+AI_MODEL=provider-fast-model
+AI_DEEP_MODEL=provider-strong-model
+```
+
+兼容说明：当前客户端使用 OpenAI-compatible Chat Completions 协议。DeepSeek、OpenAI、以及提供 `/v1/chat/completions` 兼容接口的服务可以直接配置；不兼容该协议的原生 SDK 供应商需要后续新增 adapter。
 
 ## 2. 启动服务
 
@@ -47,6 +77,12 @@ http://localhost:8000
 | 审查报告 | `/tasks/{task_id}/report` | 查看 PR 总结、风险文件、finding、置信度和建议 |
 | 规则说明 | `/rules` | 查看 S001-S015 规则 |
 | 评测仪表盘 | `/evaluation` | 查看 Golden Evaluation 和规则级质量指标 |
+
+健康检查 API：
+
+| API | 用途 |
+| --- | --- |
+| `/api/system/status` | 查看 AI Provider、模型名、超时、最大输出长度、GitHub Token 是否配置。该接口只返回布尔状态，不返回密钥内容。 |
 
 ## 3. 提交一次 PR 审查
 
@@ -93,6 +129,8 @@ FETCHING_PR
 | `0.60 - 0.79` | 报告页可见，但不自动评论 |
 | `>= 0.80` | 可进入 GitHub 评论候选 |
 | `critical/high >= 0.70` | 高风险问题可进入 GitHub 评论候选 |
+
+AI finding 还会经过 changed-line evidence gate：文件级 AI 问题需要尽量锚定到 PR 新增行或其附近。如果模型给出的行号不在 changed hunk 附近，系统会降低置信度并默认过滤低证据结果；如果能绑定到 changed line，报告会保留对应代码片段和置信度原因。这是为了减少普通 diff-to-LLM 容易出现的“合理但无证据”误报。
 
 ## 5. 使用 Golden Evaluation
 

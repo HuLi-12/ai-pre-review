@@ -1,5 +1,5 @@
 import datetime
-from sqlalchemy import Column, Integer, String, Text, DateTime, DECIMAL, ForeignKey
+from sqlalchemy import Column, Integer, String, Text, DateTime, Float, ForeignKey
 from app.database import Base
 
 
@@ -58,7 +58,7 @@ class PRReviewFinding(Base):
     title = Column(String(512), nullable=True)
     reason = Column(Text, nullable=True)
     suggestion = Column(Text, nullable=True)
-    confidence = Column(DECIMAL(4, 3), nullable=True)
+    confidence = Column(Float, nullable=True)
     evidence_json = Column(Text, nullable=True)
     status = Column(String(32), default="OPEN")
     created_at = Column(DateTime, default=datetime.datetime.utcnow)

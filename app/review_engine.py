@@ -7,6 +7,7 @@ from sqlalchemy.orm import Session
 
 from app.github_client import GitHubClient, ChangedFile, PRInfo
 from app.static_scanner import StaticScanner, RuleFinding
+from app.diff_utils import parse_patch
 from app.context_builder import ContextBuilder, ReviewContext
 from app.ai_client import AIClient
 from app.models import PRReviewTask, PRChangedFile, PRReviewFinding
@@ -69,6 +70,7 @@ class ReviewEngine:
             # ---- Stage 3: Static Rule Scanning (on patch only) ----
             await self._update_progress(task, db, "STATIC_SCAN", 30)
             rule_findings = self._run_static_scan(changed_files)
+            self._changed_line_index = self._build_changed_line_index(changed_files)
 
             # ---- Stage 4: Risk Scoring & AI Review ----
             await self._update_progress(task, db, "AI_PR_SUMMARY", 40)
@@ -461,6 +463,63 @@ class ReviewEngine:
 
         return f"{file_path}:{issue_type}:{line_bucket}:{title[:20]}"
 
+    @staticmethod
+    def _build_changed_line_index(changed_files: List[ChangedFile]) -> Dict[str, Dict[int, str]]:
+        """Build file -> added line -> content index for AI evidence anchoring."""
+        index: Dict[str, Dict[int, str]] = {}
+        for changed_file in changed_files:
+            if not changed_file.patch:
+                continue
+            lines = parse_patch(changed_file.patch)
+            if not lines:
+                continue
+            index[changed_file.file_path] = {
+                item["new_line"]: item["content"]
+                for item in lines
+                if item.get("new_line") is not None
+            }
+        return index
+
+    @staticmethod
+    def _coerce_line_number(line: Any) -> int:
+        try:
+            return int(line)
+        except (TypeError, ValueError):
+            return 0
+
+    def _attach_changed_line_evidence(self, finding: dict) -> dict:
+        """Anchor AI file findings to nearby changed lines when possible."""
+        if finding.get("source") != "ai_file":
+            return finding
+
+        file_path = finding.get("file", "")
+        line = self._coerce_line_number(finding.get("line"))
+        if line:
+            finding["line"] = line
+
+        changed_lines = getattr(self, "_changed_line_index", {}).get(file_path, {})
+        if not changed_lines:
+            finding["changed_line_evidence"] = False
+            finding["confidence_reason"] = "AI finding has no changed-line evidence for this file"
+            return finding
+
+        nearest_line = None
+        for candidate in changed_lines:
+            if line and abs(candidate - line) <= 3:
+                if nearest_line is None or abs(candidate - line) < abs(nearest_line - line):
+                    nearest_line = candidate
+
+        if nearest_line is None:
+            finding["changed_line_evidence"] = False
+            finding["confidence_reason"] = "AI finding cited a line outside the changed hunk"
+            return finding
+
+        finding["changed_line_evidence"] = True
+        finding["line"] = line or nearest_line
+        finding["line_content"] = changed_lines[nearest_line]
+        finding["confidence_reason"] = "AI finding anchored to changed-line evidence"
+        return finding
+
     def _merge_findings(
         self,
         file_findings: List[dict],
@@ -490,7 +549,7 @@ class ReviewEngine:
         # Add AI file findings
         for fd in file_findings:
             fd["source"] = "ai_file"
-            merged.append(fd)
+            merged.append(self._attach_changed_line_evidence(fd))
 
         # Add cross-file findings
         for fd in cross_findings:

@@ -195,7 +195,7 @@ flowchart LR
 ```bash
 # 1. 配置环境变量
 cp .env.example .env
-# 编辑 .env：设置 GITHUB_TOKEN、AI_API_KEY、AI_BASE_URL
+# 编辑 .env：设置 GITHUB_TOKEN、AI_PROVIDER、AI_API_KEY、AI_API_BASE、AI_MODEL
 
 # 2. 安装依赖
 pip install -r requirements.txt

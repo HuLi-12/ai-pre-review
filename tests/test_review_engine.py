@@ -47,6 +47,57 @@ def test_static_rule_merge_preserves_code_snippet_for_evidence():
     assert merged[0]["confidence_reason"] == "Deterministic static rule match with changed-line evidence"
 
 
+def test_ai_file_finding_without_changed_line_evidence_is_filtered():
+    engine = ReviewEngine.__new__(ReviewEngine)
+    engine._changed_line_index = {
+        "app/service.py": {
+            10: "return user.name",
+        }
+    }
+    ai_findings = [
+        {
+            "file": "app/service.py",
+            "line": 90,
+            "type": "correctness",
+            "severity": "high",
+            "title": "Possible null dereference",
+            "reason": "The model claims this line may dereference None, but the cited line is outside the changed hunk.",
+            "suggestion": "Move the check near the changed branch before dereferencing the object.",
+        }
+    ]
+
+    merged = engine._merge_findings(ai_findings, [], {})
+
+    assert merged == []
+
+
+def test_ai_file_finding_near_changed_line_gets_evidence_bonus():
+    engine = ReviewEngine.__new__(ReviewEngine)
+    engine._changed_line_index = {
+        "app/service.py": {
+            42: "return user.name",
+        }
+    }
+    ai_findings = [
+        {
+            "file": "app/service.py",
+            "line": 43,
+            "type": "correctness",
+            "severity": "high",
+            "title": "Missing null check before dereference",
+            "reason": "The changed return path dereferences user.name without checking whether user can be None.",
+            "suggestion": "Check user before returning user.name or raise a clear domain error.",
+        }
+    ]
+
+    merged = engine._merge_findings(ai_findings, [], {})
+
+    assert len(merged) == 1
+    assert merged[0]["changed_line_evidence"] is True
+    assert merged[0]["line_content"] == "return user.name"
+    assert "changed-line evidence" in merged[0]["confidence_reason"]
+
+
 def test_review_engine_reuses_latest_comment_id_for_same_pr():
     db = SessionLocal()
     try:

@@ -22,6 +22,12 @@ build/
 *.db
 *.sqlite3
 .claude/
+.artifacts/
+
+# Frontend prototype build artifacts
+frontend-prototype/.vite/
+frontend-prototype/tsconfig.app.tsbuildinfo
+frontend-prototype/tsconfig.node.tsbuildinfo
 
 # OS
 .DS_Store
