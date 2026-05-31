@@ -1,16 +1,16 @@
 {% extends "base.html" %}
-{% block title %}Golden Evaluation Dashboard - AI Review Cockpit{% endblock %}
+{% block title %}评测看板 - AI Review Cockpit{% endblock %}
 
 {% block content %}
 <div class="row mb-4">
     <div class="col-lg-8">
         <div class="small text-uppercase mb-2" style="color: var(--cockpit-success); letter-spacing: 1px;">
-            <i class="bi bi-clipboard2-check me-1"></i> Golden Evaluation Dashboard
+            <i class="bi bi-clipboard2-check me-1"></i> 评测看板
         </div>
-        <h1 class="fw-bold mb-2">Review quality, measured before it reaches reviewers</h1>
+        <h1 class="fw-bold mb-2">评审质量评测 — 在到达人工评审之前量化质量</h1>
         <p class="mb-0" style="color: var(--cockpit-muted); max-width: 760px;">
-            Synthetic Golden Cases and Real PR Replay Cases quantify false positives, missed findings, and confidence gates.
-            This page explains why the cockpit is stricter than an ordinary diff-to-LLM baseline.
+            通过合成黄金用例和真实 PR 回放用例，量化误报、漏报和置信度门控效果。
+            本页展示驾驶舱相比普通 diff-to-LLM 基线更加严格的原因。
         </p>
     </div>
     <div class="col-lg-4 text-lg-end mt-3 mt-lg-0">
@@ -23,37 +23,37 @@
 <div class="row g-3 mb-4">
     <div class="col-6 col-lg-2">
         <div class="cockpit-card p-3 h-100">
-            <div class="small text-uppercase" style="color: var(--cockpit-muted);">Cases</div>
-            <div class="fs-3 fw-bold" style="color: var(--cockpit-primary);">{{ golden_eval.total_cases }} cases</div>
+            <div class="small text-uppercase" style="color: var(--cockpit-muted);">用例数</div>
+            <div class="fs-3 fw-bold" style="color: var(--cockpit-primary);">{{ golden_eval.total_cases }} 个</div>
         </div>
     </div>
     <div class="col-6 col-lg-2">
         <div class="cockpit-card p-3 h-100">
-            <div class="small text-uppercase" style="color: var(--cockpit-muted);">Precision</div>
+            <div class="small text-uppercase" style="color: var(--cockpit-muted);">精确率</div>
             <div class="fs-3 fw-bold" style="color: var(--cockpit-success);">{{ (golden_eval.precision * 100)|int }}%</div>
         </div>
     </div>
     <div class="col-6 col-lg-2">
         <div class="cockpit-card p-3 h-100">
-            <div class="small text-uppercase" style="color: var(--cockpit-muted);">Recall</div>
+            <div class="small text-uppercase" style="color: var(--cockpit-muted);">召回率</div>
             <div class="fs-3 fw-bold" style="color: var(--cockpit-success);">{{ (golden_eval.recall * 100)|int }}%</div>
         </div>
     </div>
     <div class="col-6 col-lg-2">
         <div class="cockpit-card p-3 h-100">
-            <div class="small text-uppercase" style="color: var(--cockpit-muted);">False Positives</div>
+            <div class="small text-uppercase" style="color: var(--cockpit-muted);">误报数</div>
             <div class="fs-3 fw-bold" style="color: var(--cockpit-danger);">{{ golden_eval.false_positive_count }}</div>
         </div>
     </div>
     <div class="col-6 col-lg-2">
         <div class="cockpit-card p-3 h-100">
-            <div class="small text-uppercase" style="color: var(--cockpit-muted);">Missed</div>
+            <div class="small text-uppercase" style="color: var(--cockpit-muted);">漏报数</div>
             <div class="fs-3 fw-bold" style="color: var(--cockpit-danger);">{{ golden_eval.false_negative_count }}</div>
         </div>
     </div>
     <div class="col-6 col-lg-2">
         <div class="cockpit-card p-3 h-100">
-            <div class="small text-uppercase" style="color: var(--cockpit-muted);">GitHub Ready</div>
+            <div class="small text-uppercase" style="color: var(--cockpit-muted);">可推送 GitHub</div>
             <div class="fs-3 fw-bold" style="color: var(--cockpit-warning);">{{ golden_eval.github_ready_count }}</div>
         </div>
     </div>
@@ -62,19 +62,19 @@
 <div class="row g-3 mb-4">
     <div class="col-lg-6">
         <div class="cockpit-card p-4 h-100" style="border-color: rgba(56,189,248,0.22);">
-            <div class="small text-uppercase mb-1" style="color: var(--cockpit-primary); letter-spacing: 1px;">Synthetic Golden Cases</div>
-            <h5 class="fw-semibold mb-2">{{ golden_eval.total_cases }} cases / {{ golden_eval.expected_total }} expected findings</h5>
+            <div class="small text-uppercase mb-1" style="color: var(--cockpit-primary); letter-spacing: 1px;">合成黄金用例</div>
+            <h5 class="fw-semibold mb-2">{{ golden_eval.total_cases }} 个用例 / {{ golden_eval.expected_total }} 个预期发现</h5>
             <p class="small mb-0" style="color: var(--cockpit-muted);">
-                Local deterministic diff fixtures cover targeted rule behavior and false-positive controls.
+                本地确定性 diff 数据覆盖特定的规则行为和误报控制场景。
             </p>
         </div>
     </div>
     <div class="col-lg-6">
         <div class="cockpit-card p-4 h-100" style="border-color: rgba(34,197,94,0.22);">
-            <div class="small text-uppercase mb-1" style="color: var(--cockpit-success); letter-spacing: 1px;">Real PR Replay Cases</div>
-            <h5 class="fw-semibold mb-2">{{ real_pr_replay.total_cases }} public PR snapshots / {{ real_pr_replay.expected_total }} expected findings</h5>
+            <div class="small text-uppercase mb-1" style="color: var(--cockpit-success); letter-spacing: 1px;">真实 PR 回放</div>
+            <h5 class="fw-semibold mb-2">{{ real_pr_replay.total_cases }} 个公开 PR 快照 / {{ real_pr_replay.expected_total }} 个预期发现</h5>
             <p class="small mb-0" style="color: var(--cockpit-muted);">
-                Fixed snapshots from public GitHub PRs validate the same gates without relying on live network calls.
+                来自公开 GitHub PR 的固定快照，无需实时网络调用即可验证相同的门控逻辑。
             </p>
         </div>
     </div>
@@ -85,23 +85,19 @@
         <div class="cockpit-card p-4 h-100">
             <h5 class="fw-semibold mb-3">
                 <i class="bi bi-cpu me-1" style="color: var(--cockpit-muted);"></i>
-                Ordinary diff-to-LLM baseline
+                普通 diff-to-LLM 基线
             </h5>
             <div class="d-flex justify-content-between mb-2">
-                <span style="color: var(--cockpit-muted);">Candidate suggestions</span>
+                <span style="color: var(--cockpit-muted);">候选建议数</span>
                 <strong>{{ golden_eval.baseline_candidate_count }}</strong>
             </div>
             <div class="d-flex justify-content-between mb-2">
-                <span style="color: var(--cockpit-muted);">Baseline Candidates</span>
-                <strong>{{ golden_eval.baseline_candidate_count }}</strong>
-            </div>
-            <div class="d-flex justify-content-between mb-2">
-                <span style="color: var(--cockpit-muted);">Confidence gate</span>
-                <strong style="color: var(--cockpit-danger);">None</strong>
+                <span style="color: var(--cockpit-muted);">置信门控</span>
+                <strong style="color: var(--cockpit-danger);">无</strong>
             </div>
             <div class="d-flex justify-content-between">
-                <span style="color: var(--cockpit-muted);">Reviewer noise control</span>
-                <strong style="color: var(--cockpit-danger);">Manual</strong>
+                <span style="color: var(--cockpit-muted);">人工降噪</span>
+                <strong style="color: var(--cockpit-danger);">手动</strong>
             </div>
         </div>
     </div>
@@ -109,24 +105,24 @@
         <div class="cockpit-card p-4 h-100" style="border-color: rgba(34,197,94,0.25);">
             <h5 class="fw-semibold mb-3">
                 <i class="bi bi-shield-check me-1" style="color: var(--cockpit-success);"></i>
-                Cockpit confidence-gated review
+                驾驶舱置信门控评审
             </h5>
             <div class="row g-3">
                 <div class="col-md-4">
                     <div class="p-3 rounded" style="background: rgba(56,189,248,0.08); border: 1px solid rgba(56,189,248,0.16);">
-                        <div class="small text-uppercase" style="color: var(--cockpit-muted);">Expected Visible</div>
+                        <div class="small text-uppercase" style="color: var(--cockpit-muted);">预期可见</div>
                         <div class="fs-4 fw-bold">{{ golden_eval.visible_expected_count }}/{{ golden_eval.expected_total }}</div>
                     </div>
                 </div>
                 <div class="col-md-4">
                     <div class="p-3 rounded" style="background: rgba(245,158,11,0.08); border: 1px solid rgba(245,158,11,0.16);">
-                        <div class="small text-uppercase" style="color: var(--cockpit-muted);">Filtered Noise</div>
+                        <div class="small text-uppercase" style="color: var(--cockpit-muted);">过滤噪声</div>
                         <div class="fs-4 fw-bold">{{ golden_eval.noise_filtered_count }}</div>
                     </div>
                 </div>
                 <div class="col-md-4">
                     <div class="p-3 rounded" style="background: rgba(34,197,94,0.08); border: 1px solid rgba(34,197,94,0.16);">
-                        <div class="small text-uppercase" style="color: var(--cockpit-muted);">Comment Ready</div>
+                        <div class="small text-uppercase" style="color: var(--cockpit-muted);">可评论</div>
                         <div class="fs-4 fw-bold">{{ golden_eval.github_ready_count }}</div>
                     </div>
                 </div>
@@ -134,25 +130,25 @@
             <div class="row g-3 mt-1">
                 <div class="col-md-4">
                     <div class="p-3 rounded" style="background: rgba(37,99,235,0.07); border: 1px solid rgba(37,99,235,0.14);">
-                        <div class="small text-uppercase" style="color: var(--cockpit-muted);">Evidence Gate Retention</div>
+                        <div class="small text-uppercase" style="color: var(--cockpit-muted);">证据链保留率</div>
                         <div class="fs-4 fw-bold">{{ (golden_eval.evidence_gate_retention_rate * 100)|int }}%</div>
                     </div>
                 </div>
                 <div class="col-md-4">
                     <div class="p-3 rounded" style="background: rgba(5,150,105,0.07); border: 1px solid rgba(5,150,105,0.14);">
-                        <div class="small text-uppercase" style="color: var(--cockpit-muted);">Evidence-backed</div>
+                        <div class="small text-uppercase" style="color: var(--cockpit-muted);">证据支持</div>
                         <div class="fs-4 fw-bold">{{ golden_eval.evidence_backed_count }}</div>
                     </div>
                 </div>
                 <div class="col-md-4">
                     <div class="p-3 rounded" style="background: rgba(220,38,38,0.07); border: 1px solid rgba(220,38,38,0.14);">
-                        <div class="small text-uppercase" style="color: var(--cockpit-muted);">Invalid Model Output</div>
+                        <div class="small text-uppercase" style="color: var(--cockpit-muted);">无效模型输出</div>
                         <div class="fs-4 fw-bold">{{ golden_eval.invalid_finding_count }}</div>
                     </div>
                 </div>
             </div>
             <p class="small mt-3 mb-0" style="color: var(--cockpit-muted);">
-                Gate policy: findings below 0.60 are hidden by default; findings at 0.80 or severe findings above 0.70 are GitHub comment-ready.
+                门控策略：置信度低于 0.60 的发现默认隐藏；0.80 以上或严重问题 0.70 以上可推送到 GitHub 评论。
             </p>
         </div>
     </div>
@@ -160,21 +156,21 @@
 
 <div class="cockpit-card mb-4">
     <div class="p-3" style="border-bottom: 1px solid var(--cockpit-border);">
-        <h5 class="mb-0"><i class="bi bi-table me-1" style="color: var(--cockpit-primary);"></i> Rule-level Quality</h5>
+        <h5 class="mb-0"><i class="bi bi-table me-1" style="color: var(--cockpit-primary);"></i> 规则级质量</h5>
     </div>
     <div class="table-responsive">
         <table class="table table-hover align-middle mb-0">
             <thead>
                 <tr>
-                    <th>Rule</th>
-                    <th>Expected</th>
-                    <th>TP</th>
-                    <th>FP</th>
-                    <th>FN</th>
-                    <th>Visible</th>
-                    <th>GitHub Ready</th>
-                    <th>Precision</th>
-                    <th>Recall</th>
+                    <th>规则</th>
+                    <th>预期</th>
+                    <th>正确</th>
+                    <th>误报</th>
+                    <th>漏报</th>
+                    <th>可见</th>
+                    <th>可推送</th>
+                    <th>精确率</th>
+                    <th>召回率</th>
                 </tr>
             </thead>
             <tbody>
@@ -198,7 +194,7 @@
 
 <div class="cockpit-card">
     <div class="p-3" style="border-bottom: 1px solid var(--cockpit-border);">
-        <h5 class="mb-0"><i class="bi bi-list-check me-1" style="color: var(--cockpit-primary);"></i> Case Results</h5>
+        <h5 class="mb-0"><i class="bi bi-list-check me-1" style="color: var(--cockpit-primary);"></i> 用例详情</h5>
     </div>
     <div class="p-3">
         <div class="row g-3">
@@ -208,20 +204,20 @@
                     <div class="d-flex justify-content-between gap-2">
                         <strong style="font-size: 0.9rem;">{{ case.title }}</strong>
                         {% if case.missing_rule_ids or case.unexpected_rule_ids %}
-                            <span class="badge bg-danger">check</span>
+                            <span class="badge bg-danger">需检查</span>
                         {% else %}
-                            <span class="badge bg-success">pass</span>
+                            <span class="badge bg-success">通过</span>
                         {% endif %}
                     </div>
                     <div class="small mt-2" style="color: var(--cockpit-muted);">
                         <code>{{ case.case_id }}</code>
                     </div>
                     <div class="small mt-2">
-                        Expected: {{ case.expected_rule_ids|join(", ") if case.expected_rule_ids else "none" }}<br>
-                        Detected: {{ case.detected_rule_ids|join(", ") if case.detected_rule_ids else "none" }}
+                        预期: {{ case.expected_rule_ids|join(", ") if case.expected_rule_ids else "无" }}<br>
+                        检测: {{ case.detected_rule_ids|join(", ") if case.detected_rule_ids else "无" }}
                     </div>
                     <div class="small mt-2" style="color: var(--cockpit-muted);">
-                        Pipeline: {{ case.raw_finding_count }} raw / {{ case.invalid_finding_count }} invalid / {{ case.visible_finding_count }} visible
+                        流水线: {{ case.raw_finding_count }} 原始 / {{ case.invalid_finding_count }} 无效 / {{ case.visible_finding_count }} 可见
                     </div>
                 </div>
             </div>
@@ -232,7 +228,7 @@
 
 <div class="cockpit-card mt-4">
     <div class="p-3" style="border-bottom: 1px solid var(--cockpit-border);">
-        <h5 class="mb-0"><i class="bi bi-github me-1" style="color: var(--cockpit-primary);"></i> Real PR Replay Cases</h5>
+        <h5 class="mb-0"><i class="bi bi-github me-1" style="color: var(--cockpit-primary);"></i> 真实 PR 回放</h5>
     </div>
     <div class="p-3">
         <div class="row g-3">
@@ -242,9 +238,9 @@
                     <div class="d-flex justify-content-between gap-2">
                         <strong style="font-size: 0.9rem;">{{ case.source_label or case.case_id }}</strong>
                         {% if case.missing_rule_ids or case.unexpected_rule_ids %}
-                            <span class="badge bg-danger">check</span>
+                            <span class="badge bg-danger">需检查</span>
                         {% else %}
-                            <span class="badge bg-success">pass</span>
+                            <span class="badge bg-success">通过</span>
                         {% endif %}
                     </div>
                     <div class="small mt-2" style="color: var(--cockpit-muted);">{{ case.title }}</div>
@@ -254,11 +250,11 @@
                     </a>
                     {% endif %}
                     <div class="small mt-2">
-                        Expected: {{ case.expected_rule_ids|join(", ") if case.expected_rule_ids else "none" }}<br>
-                        Detected: {{ case.detected_rule_ids|join(", ") if case.detected_rule_ids else "none" }}
+                        预期: {{ case.expected_rule_ids|join(", ") if case.expected_rule_ids else "无" }}<br>
+                        检测: {{ case.detected_rule_ids|join(", ") if case.detected_rule_ids else "无" }}
                     </div>
                     <div class="small mt-2" style="color: var(--cockpit-muted);">
-                        Pipeline: {{ case.raw_finding_count }} raw / {{ case.invalid_finding_count }} invalid / {{ case.visible_finding_count }} visible / {{ case.evidence_backed_count }} evidence-backed
+                        流水线: {{ case.raw_finding_count }} 原始 / {{ case.invalid_finding_count }} 无效 / {{ case.visible_finding_count }} 可见 / {{ case.evidence_backed_count }} 证据支持
                     </div>
                     {% if case.finding_evidence %}
                     <div class="mt-2">

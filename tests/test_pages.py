@@ -66,16 +66,16 @@ def test_evaluation_page_shows_rule_metrics_and_gate_comparison():
         response = client.get("/evaluation")
 
     assert response.status_code == 200
-    assert "Golden Evaluation Dashboard" in response.text
-    assert "Ordinary diff-to-LLM baseline" in response.text
-    assert "Baseline Candidates" in response.text
-    assert "Evidence Gate Retention" in response.text
-    assert "Invalid Model Output" in response.text
-    assert "Synthetic Golden Cases" in response.text
-    assert "Real PR Replay Cases" in response.text
-    assert "Rule-level Quality" in response.text
+    assert "评测看板" in response.text
+    assert "普通 diff-to-LLM 基线" in response.text
+    assert "候选建议数" in response.text
+    assert "证据链保留率" in response.text
+    assert "无效模型输出" in response.text
+    assert "合成黄金用例" in response.text
+    assert "真实 PR 回放" in response.text
+    assert "规则级质量" in response.text
     assert "S005" in response.text
-    assert "20 cases" in response.text
+    assert "20 个" in response.text
     assert "localtunnel/localtunnel#339" in response.text
 
 
