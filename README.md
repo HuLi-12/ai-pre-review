@@ -2,7 +2,7 @@
 
 不只是又一个 AI 代码审查工具。我们分析变更行、计算文件风险、结合静态规则与 AI 推理，只展示**有证据和置信度**的发现。
 
-## Positioning: rules are evidence, not limits
+## 定位：rules are evidence, not limits
 
 AI Review Cockpit does not force every review finding into S001-S015.
 Static Rules capture deterministic, high-confidence evidence; AI File Review and
@@ -16,8 +16,7 @@ Final findings are normalized through Evidence Chain and Confidence Gate:
 - `ai_file`: single-file semantic findings with `rule_id = null` and a category such as correctness or reliability.
 - `ai_cross`: cross-file consistency findings with `rule_id = null` and a category such as api_contract or data_consistency.
 
-Golden Evaluation measures the stability of Static Rules and confidence gating.
-AI semantic review is validated through real PR replay and manual inspection.
+Golden Evaluation 用固定基准集验证 Static Rules、Evidence Chain 和 Confidence Gate 的稳定性；LLM 语义 Review 通过真实 PR replay、演示 PR 和人工复核补充验证。
 
 [![CI](https://github.com/HuLi-12/ai-pre-review/actions/workflows/ci.yml/badge.svg)](https://github.com/HuLi-12/ai-pre-review/actions/workflows/ci.yml)
 
@@ -27,6 +26,12 @@ AI semantic review is validated through real PR replay and manual inspection.
 
 > 📺 演示视频：[AI Review Cockpit 完整流程](https://b23.tv/JcFwsMp)  
 > 完整操作指南含截图：[`docs/demo/README.md`](docs/demo/README.md)
+
+### 推荐验证 PR
+
+推荐使用 [`HuLi-12/ai-pre-review#19`](https://github.com/HuLi-12/ai-pre-review/pull/19) 进行演示。该 PR 来自 [`test/adversarial-validation-pr`](https://github.com/HuLi-12/ai-pre-review/tree/test/adversarial-validation-pr) 分支，是**故意构造的错误验证分支**，用于测试系统是否能识别硬编码密钥、危险 SQL、N+1 查询、缺少鉴权、缺少测试等风险。
+
+该分支不是功能开发分支，不建议合并到 `master`；它的作用是作为 adversarial validation PR，方便评委和开发者复现完整审查链路。
 
 ### 1. 提交 PR
 
@@ -230,6 +235,13 @@ flowchart LR
 cp .env.example .env
 # 编辑 .env：设置 GITHUB_TOKEN、AI_PROVIDER、AI_API_KEY、AI_API_BASE、AI_MODEL
 
+# DeepSeek 示例
+AI_PROVIDER=auto
+AI_API_KEY=你的 DeepSeek API Key
+AI_API_BASE=https://api.deepseek.com/v1
+AI_MODEL=deepseek-chat
+AI_DEEP_MODEL=deepseek-chat
+
 # 2. 安装依赖
 pip install -r requirements.txt
 
@@ -294,7 +306,7 @@ app/
   routers/                       # REST API 端点（tasks/reports/evaluation）
 templates/                       # Jinja2 Web UI（含评测仪表盘）
 docs/demo/                       # 操作指南
-frontend-prototype/              # React + shadcn/ui 原型
+frontend-prototype/              # React + shadcn/ui 未来 UI 原型，不是当前主运行链路
 ```
 
 ---
@@ -326,13 +338,13 @@ frontend-prototype/              # React + shadcn/ui 原型
 | 规则 | 15 条确定性规则（S001–S015），仅扫描 patch 新增行 |
 | AI 集成 | LLM 驱动的 PR 摘要、逐文件深度/普通审查、跨文件一致性检查 |
 | 噪音控制 | 变更行分析 + 置信度门禁（3 个阈值）+ 签名去重 |
-| 用户体验 | Cockpit 仪表盘：指标卡片、风险地图、流水线条、键盘快捷键、证据链 |
+| 用户体验 | Cockpit 仪表盘：指标卡片、风险地图、流水线条、点击过滤、反馈按钮、证据链 |
 | 测试 | 16 个测试文件共 103 个测试，CI 在 Python 3.10 上通过 |
 | 前端展望 | 独立的 shadcn/ui React 原型位于 `frontend-prototype/` |
 
 **核心差异：** 不是"diff-to-LLM"包装器。每个发现都有置信度分数、证据轨迹和可见性门禁——将 AI 审查从建议列表转变为合并决策工具。
 
-完整项目评审：[`docs/final-review.md`](docs/final-review.md) · 评审指标映射：[`docs/evaluation-mapping.md`](docs/evaluation-mapping.md) · 操作指南：[`docs/demo/README.md`](docs/demo/README.md)
+完整项目评审：[`docs/final-review.md`](docs/final-review.md) · 项目总览：[`docs/project-overview.md`](docs/project-overview.md) · 演讲稿：[`docs/presentation-script.md`](docs/presentation-script.md) · 评审指标映射：[`docs/evaluation-mapping.md`](docs/evaluation-mapping.md) · 操作指南：[`docs/demo/README.md`](docs/demo/README.md)
 
 ---
 
