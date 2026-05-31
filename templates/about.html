@@ -1,0 +1,103 @@
+{% extends "base.html" %}
+{% block title %}关于 - AI Review Cockpit{% endblock %}
+
+{% block content %}
+<div class="row justify-content-center">
+    <div class="col-xl-10">
+        <div class="mb-4">
+            <a href="/" class="text-decoration-none small"><i class="bi bi-arrow-left"></i> 返回首页</a>
+            <h1 class="fw-bold mt-3 mb-2">关于 AI Review Cockpit</h1>
+            <p class="fs-5 mb-0" style="color: var(--cockpit-muted); max-width: 760px;">
+                它不是把整个 diff 直接丢给大模型，而是围绕 Changed Lines、Evidence Chain 和 Confidence Gate
+                组织一次可解释、低噪声的 PR Review。
+            </p>
+        </div>
+
+        <div class="cockpit-card p-4 mb-4">
+            <h5 class="fw-semibold mb-3">为什么不是普通 AI Review</h5>
+            <div class="row g-3">
+                <div class="col-md-4">
+                    <div class="p-3 rounded h-100 bg-cockpit-subtle">
+                        <div class="fw-semibold mb-1">减少无关上下文</div>
+                        <div class="small" style="color: var(--cockpit-muted);">普通 diff-to-LLM 容易把旧代码问题当成新问题；Cockpit 只把本次变更行作为主要审查对象。</div>
+                    </div>
+                </div>
+                <div class="col-md-4">
+                    <div class="p-3 rounded h-100 bg-cockpit-subtle">
+                        <div class="fw-semibold mb-1">控制误报</div>
+                        <div class="small" style="color: var(--cockpit-muted);">低置信结果默认不进入高优先级展示，高置信或高风险结果才进入 GitHub Ready。</div>
+                    </div>
+                </div>
+                <div class="col-md-4">
+                    <div class="p-3 rounded h-100 bg-cockpit-subtle">
+                        <div class="fw-semibold mb-1">保留证据</div>
+                        <div class="small" style="color: var(--cockpit-muted);">每条 finding 尽量绑定规则、代码片段、置信度原因和建议，方便 reviewer 快速判断。</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="cockpit-card p-4 mb-4">
+            <h5 class="fw-semibold mb-3">工作流程</h5>
+            <div class="row g-3">
+                {% set steps = [
+                    ("01", "获取 PR", "通过 GitHub API 获取 PR diff、文件列表和提交元信息。"),
+                    ("02", "Changed Lines", "解析 unified diff，只抽取新增和修改行，避免旧代码噪声。"),
+                    ("03", "Risk-Aware Routing", "按路径、变更规模和风险关键词决定静态规则和 AI 分析深度。"),
+                    ("04", "Confidence Gate", "合并规则和 AI 结果，按置信度控制展示与 GitHub Ready。"),
+                ] %}
+                {% for number, title, body in steps %}
+                <div class="col-md-3">
+                    <div class="p-3 rounded h-100" style="border: 1px solid var(--cockpit-border);">
+                        <div class="small text-cockpit-primary fw-semibold mb-2">{{ number }}</div>
+                        <div class="fw-semibold mb-1">{{ title }}</div>
+                        <div class="small" style="color: var(--cockpit-muted);">{{ body }}</div>
+                    </div>
+                </div>
+                {% endfor %}
+            </div>
+        </div>
+
+        <div class="row g-3 mb-4">
+            {% set concepts = [
+                ("Changed Lines", "只分析本次 PR 的新增/修改行，并用必要的上下文辅助判断。"),
+                ("Risk-Aware Routing", "高风险路径和大规模变更进入更深分析，低风险文档变更快速跳过。"),
+                ("Confidence Gate", "按证据强度、来源一致性和风险等级决定是否展示、是否 GitHub Ready。"),
+                ("Evidence Chain", "把命中规则、代码片段、AI 来源和置信度原因连成可追溯链路。"),
+                ("Review Decision", "把 Risk Level、Merge Decision 和重点 finding 汇总成 reviewer 可执行结论。"),
+                ("Golden Evaluation", "用固定样例量化误报、漏报和置信度门控效果。"),
+            ] %}
+            {% for title, body in concepts %}
+            <div class="col-md-6 col-lg-4">
+                <div class="cockpit-card p-4 h-100">
+                    <h6 class="fw-semibold mb-2">{{ title }}</h6>
+                    <div class="small" style="color: var(--cockpit-muted);">{{ body }}</div>
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+
+        <div class="cockpit-card p-4">
+            <h5 class="fw-semibold mb-3">系统架构和未来扩展方向</h5>
+            <div class="row g-3">
+                <div class="col-md-6">
+                    <h6 class="fw-semibold">当前架构</h6>
+                    <ul class="small mb-0" style="color: var(--cockpit-muted);">
+                        <li>FastAPI 负责任务创建、状态查询、报告接口和页面渲染。</li>
+                        <li>ReviewEngine 负责 GitHub PR 获取、静态规则、AI Review、去重和报告生成。</li>
+                        <li>Jinja2 + Bootstrap 负责工具入口、任务进度、报告和评测展示。</li>
+                    </ul>
+                </div>
+                <div class="col-md-6">
+                    <h6 class="fw-semibold">未来扩展方向</h6>
+                    <ul class="small mb-0" style="color: var(--cockpit-muted);">
+                        <li>接入更多模型并按任务类型自动路由。</li>
+                        <li>把 reviewer 反馈沉淀为规则和置信度校准数据。</li>
+                        <li>支持行级 GitHub review comment 和团队级规则配置。</li>
+                    </ul>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

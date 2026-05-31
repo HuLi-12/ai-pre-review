@@ -35,7 +35,7 @@
 | 置信度评分 | 基础分 + 证据分 + 同意加成 − 不确定性扣减 | `app/confidence_calculator.py` |
 | GitHub 评论 | 将高置信度发现发布到 PR，支持幂等更新 | `app/report_generator.py:generate_github_comment()` |
 | 反馈系统 | 标记发现为有效 / 误报 / 已解决 | `app/routers/reports.py:submit_feedback()` |
-| REST API | 6 个端点，覆盖任务 CRUD、报告、文件、反馈 | `app/routers/` |
+| REST API | 10 个端点，覆盖任务 CRUD、报告、文件、反馈、系统状态、评测 | `app/routers/` |
 
 ---
 
@@ -75,7 +75,7 @@
 | 框架 | FastAPI，自动 OpenAPI 文档 | `main.py` |
 | 数据库 | SQLAlchemy + SQLite，4 个模型 | `app/database.py`、`app/models.py` |
 | 7 阶段流水线 | FETCHING_PR → BUILDING_CONTEXT → STATIC_SCAN → AI_PR_SUMMARY → AI_FILE_REVIEW → AI_CROSS_FILE → MERGING_RESULTS | `app/review_engine.py:run_review()` |
-| 模块化设计 | 12 个模块，各司其职（scanner、scorer、confidence、diff、context 等） | `app/` |
+| 模块化设计 | 16+ 个模块，各司其职（scanner、scorer、confidence、diff、context、rule_catalog、golden_evaluation、system_status、ai_provider 等） | `app/` |
 | 路由分离 | API 路由与页面路由分离 | `app/routers/`（API）、`main.py`（页面） |
 | 配置管理 | 基于环境变量的配置，支持 `.env` | `config.py` |
 | 模板继承 | 基础布局被所有页面继承 | `templates/base.html` |
@@ -86,8 +86,8 @@
 
 | 指标 | 实现 | 位置 |
 |------|------|------|
-| 测试覆盖 | 5 个套件共 28 个单元测试 | `tests/` |
-| 测试范围 | Diff 解析、静态规则、风险评分、置信度计算、URL 解析 | `tests/test_diff_utils.py`、`tests/test_static_scanner.py`、`tests/test_risk_scorer.py`、`tests/test_confidence_calculator.py`、`tests/test_github_client.py` |
+| 测试覆盖 | 15 个文件共 86 个测试 | `tests/` |
+| 测试范围 | Diff 解析、静态规则、风险评分、置信度计算、URL 解析、页面渲染、报告生成、编排引擎、系统状态、数据库迁移、AI 客户端、Provider 适配、评测框架、任务状态、配置兼容 | `tests/test_diff_utils.py`、`tests/test_static_scanner.py`、`tests/test_risk_scorer.py`、`tests/test_confidence_calculator.py`、`tests/test_github_client.py` 等 15 个文件 |
 | CI | GitHub Actions：lint、test、import-check，Python 3.10 | `.github/workflows/ci.yml` |
 | 类型提示 | 所有函数和数据类完整类型注解 | 所有 `app/` 模块 |
 | 错误处理 | API 错误使用 HTTPException，流水线故障使用任务状态 | `app/review_engine.py`、`app/routers/` |
@@ -128,7 +128,7 @@
 | 产品设计 | 6 个 UI 页面（首页、进度、报告、规则、历史、基础模板），一致的驾驶舱品牌 |
 | 功能完整性 | 从 PR 输入到 GitHub 评论的完整 7 阶段流水线，15 条规则 + AI |
 | 交互性 | 实时轮询、键盘快捷键、点击过滤、反馈系统 |
-| 创新性 | 变更行审查、风险感知路由、混合规则+AI、置信度门禁 |
-| 架构 | 12 个模块、4 个数据库模型、6 个 API 端点、FastAPI + SQLAlchemy |
-| 代码质量 | 28 个测试通过、类型提示、CI、全链路错误处理 |
-| PR 流程 | 16+ 个分阶段 PR，范围清晰，增量交付 |
+| 创新性 | 变更行审查、风险感知路由、混合规则+AI、置信度门禁、证据链 |
+| 架构 | 16+ 个模块、4 个数据库模型、10 个 API 端点、FastAPI + SQLAlchemy |
+| 代码质量 | 86 个测试通过、类型提示、CI、全链路错误处理 |
+| PR 流程 | 18+ 个 PR，范围清晰，增量交付 |

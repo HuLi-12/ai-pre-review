@@ -29,7 +29,7 @@
                     <span class="ms-2 text-muted small">{{ rule.name }}</span>
                 </span>
                 <span class="badge {% if rule.severity == 'critical' %}bg-danger{% elif rule.severity == 'high' %}bg-warning text-dark{% elif rule.severity == 'medium' %}bg-info text-dark{% else %}bg-secondary{% endif %}">
-                    {{ rule.severity | upper }}
+                    {% if rule.severity == 'critical' %}严重{% elif rule.severity == 'high' %}高{% elif rule.severity == 'medium' %}中{% else %}低{% endif %}
                 </span>
             </div>
             <div class="card-body">

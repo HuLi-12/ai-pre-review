@@ -213,11 +213,21 @@ open http://localhost:8000
 
 ```
 tests/
-├── test_diff_utils.py            # Patch 解析边界情况（5 个测试）
-├── test_static_scanner.py        # S005/S014/S011/S010、安全模式（8 个测试）
-├── test_risk_scorer.py           # 路径/关键词/大小评分（6 个测试）
-├── test_confidence_calculator.py # 阈值、同意加成、覆盖（7 个测试）
-└── test_github_client.py         # URL 解析（3 个测试）
+├── test_static_scanner.py            # 15 条静态规则 S001-S015（12 个测试）
+├── test_review_engine.py             # 编排引擎、错误分类、dry_run（10 个测试）
+├── test_pages.py                     # 页面渲染、驾驶舱、证据链、评测页（10 个测试）
+├── test_confidence_calculator.py     # 阈值、同意加成、置信度门禁（9 个测试）
+├── test_github_client.py             # URL 解析、PR 信息获取（7 个测试）
+├── test_risk_scorer.py               # 路径/关键词/大小评分（6 个测试）
+├── test_report_generator.py          # GitHub 评论、github_ready 标记（5 个测试）
+├── test_golden_evaluation.py         # 评测框架、pipeline 指标（5 个测试）
+├── test_diff_utils.py                # Patch 解析边界情况（5 个测试）
+├── test_ai_provider_adapter.py       # Provider adapter 适配层（4 个测试）
+├── test_task_status.py               # _mark_task_done 终端步骤保护（3 个测试）
+├── test_system_status.py             # 系统状态 API（3 个测试）
+├── test_ai_client.py                 # AI 客户端 fallback 行为（3 个测试）
+├── test_database_migration.py        # SQLite schema 迁移（2 个测试）
+└── test_config.py                    # 配置兼容性（2 个测试）
 ```
 
 运行测试：
@@ -238,14 +248,19 @@ app/
   diff_utils.py                  # Unified diff 解析器（仅新增行）
   risk_scorer.py                 # 文件风险评分引擎
   ai_client.py                   # LLM 客户端与结构化提示
+  ai_provider.py                 # Provider adapter（OpenAI/DeepSeek/兼容服务）
   confidence_calculator.py       # 置信度评分与规则覆盖
   context_builder.py             # 多层代码上下文组装
-  review_engine.py               # 7 阶段审查编排
+  review_engine.py               # 7 阶段审查编排 + 错误分类
   report_generator.py            # 报告 + GitHub 评论格式化
+  rule_catalog.py                # 规则目录 S001–S015
+  golden_evaluation.py           # 20 个合成用例 + 5 个真实 PR 回放评测
+  system_status.py               # 系统健康状态 API
   models.py / schemas.py         # 数据库模型 + API 模式
-  routers/                       # REST API 端点
-templates/                       # Jinja2 Web UI
+  routers/                       # REST API 端点（tasks/reports/evaluation）
+templates/                       # Jinja2 Web UI（含评测仪表盘）
 docs/demo/                       # 操作指南
+frontend-prototype/              # React + shadcn/ui 原型
 ```
 
 ---
@@ -255,11 +270,15 @@ docs/demo/                       # 操作指南
 | 方法 | 路径 | 说明 |
 |------|------|------|
 | POST | `/api/tasks` | 创建 PR 审查任务 |
-| GET | `/api/tasks/{id}` | 获取任务状态 |
+| GET | `/api/tasks/{id}` | 获取任务状态（含 error_type/fallback_flags/pipeline_details） |
 | GET | `/api/tasks/{id}/report` | 获取审查报告及发现 |
 | GET | `/api/tasks/{id}/files` | 列出变更文件及风险分数 |
 | GET | `/api/tasks/{id}/file/{file_id}/findings` | 文件级发现 |
+| GET | `/api/tasks/{id}/comment-preview` | GitHub 评论预览（含 github_ready 标记） |
 | POST | `/api/findings/{id}/feedback` | 提交反馈（VALID/FP/RESOLVED） |
+| GET | `/api/system/status` | 系统健康状态（Provider/API Key 等） |
+| GET | `/api/evaluation/golden` | 合成黄金用例评测指标 |
+| GET | `/api/evaluation/real-pr-replay` | 真实 PR 回放评测指标 |
 
 ---
 
@@ -274,7 +293,7 @@ docs/demo/                       # 操作指南
 | AI 集成 | LLM 驱动的 PR 摘要、逐文件深度/普通审查、跨文件一致性检查 |
 | 噪音控制 | 变更行分析 + 置信度门禁（3 个阈值）+ 签名去重 |
 | 用户体验 | 驾驶舱仪表盘：指标卡片、风险地图、流水线条、键盘快捷键、证据链 |
-| 测试 | 5 个测试套件共 28 个单元测试，CI 在 Python 3.10 上通过 |
+| 测试 | 15 个测试文件共 86 个测试，CI 在 Python 3.10 上通过 |
 | 前端展望 | 独立的 shadcn/ui React 原型位于 `frontend-prototype/` |
 
 **核心差异：** 不是"diff-to-LLM"包装器。每个发现都有置信度分数、证据轨迹和可见性门禁——将 AI 审查从建议列表转变为合并决策工具。

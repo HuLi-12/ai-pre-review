@@ -11,6 +11,13 @@ from app.review_engine import ReviewEngine
 
 router = APIRouter(prefix="/api/tasks", tags=["tasks"])
 
+TERMINAL_REVIEW_STEPS = {
+    "DRY_RUN",
+    "COMMENTED",
+    "COMMENT_UPDATED",
+    "COMMENT_FAILED",
+}
+
 
 @router.post("", response_model=TaskResponse)
 async def create_task(req: CreateTaskRequest, db: Session = Depends(get_db)):
@@ -55,9 +62,7 @@ async def _run_review_async(task_id: int, github_token: Optional[str]):
         engine = ReviewEngine(github_token=github_token)
         await engine.run_review(task, db)
 
-        task.status = "DONE"
-        task.progress = 100
-        task.current_step = "COMPLETED"
+        _mark_task_done(task)
         db.commit()
     except Exception as e:
         try:
@@ -73,6 +78,13 @@ async def _run_review_async(task_id: int, github_token: Optional[str]):
             pass
     finally:
         db.close()
+
+
+def _mark_task_done(task: PRReviewTask):
+    task.status = "DONE"
+    task.progress = 100
+    if task.current_step not in TERMINAL_REVIEW_STEPS:
+        task.current_step = "COMPLETED"
 
 
 @router.get("/{task_id}", response_model=TaskResponse)

@@ -1,15 +1,111 @@
-from fastapi.testclient import TestClient
 import json
+from datetime import datetime, timedelta
+
+from fastapi.testclient import TestClient
 
 from app.database import SessionLocal
 from app.models import PRReviewFinding, PRReviewTask
 from main import app
 
 
+def test_template_response_helper_supports_new_starlette_signature(monkeypatch):
+    import main as main_module
+
+    calls = []
+
+    def fake_template_response(*args):
+        calls.append(args)
+        return "ok"
+
+    request = object()
+    monkeypatch.setattr(main_module.templates, "TemplateResponse", fake_template_response)
+    monkeypatch.setattr(main_module, "_REQUEST_FIRST_TEMPLATE_RESPONSE", True)
+
+    assert main_module.render_template(request, "demo.html", {"value": 1}) == "ok"
+    assert calls == [(request, "demo.html", {"value": 1, "request": request})]
+
+
+def test_template_response_helper_supports_old_starlette_signature(monkeypatch):
+    import main as main_module
+
+    calls = []
+
+    def fake_template_response(*args):
+        calls.append(args)
+        return "ok"
+
+    request = object()
+    monkeypatch.setattr(main_module.templates, "TemplateResponse", fake_template_response)
+    monkeypatch.setattr(main_module, "_REQUEST_FIRST_TEMPLATE_RESPONSE", False)
+
+    assert main_module.render_template(request, "demo.html", {"value": 1}) == "ok"
+    assert calls == [("demo.html", {"value": 1, "request": request})]
+
+
 def test_static_pages_render():
     with TestClient(app) as client:
         assert client.get("/").status_code == 200
+        assert client.get("/about").status_code == 200
         assert client.get("/rules").status_code == 200
+
+
+def test_task_history_pr_main_link_points_to_internal_report():
+    db = SessionLocal()
+    try:
+        task = PRReviewTask(
+            repo_owner="demo",
+            repo_name="repo",
+            pr_number=404,
+            pr_url="https://github.com/demo/repo/pull/404",
+            status="DONE",
+            risk_level="LOW",
+        )
+        db.add(task)
+        db.commit()
+        task_id = task.id
+    finally:
+        db.close()
+
+    with TestClient(app) as client:
+        response = client.get("/tasks")
+
+    assert response.status_code == 200
+    assert f'href="/tasks/{task_id}/report"' in response.text
+    assert "打开 GitHub PR" in response.text
+
+
+def test_task_history_marks_stale_active_tasks_as_failed():
+    db = SessionLocal()
+    try:
+        task = PRReviewTask(
+            repo_owner="demo",
+            repo_name="repo",
+            pr_number=405,
+            pr_url="https://github.com/demo/repo/pull/405",
+            status="PENDING",
+            progress=0,
+            created_at=datetime.utcnow() - timedelta(hours=2),
+            updated_at=datetime.utcnow() - timedelta(hours=2),
+        )
+        db.add(task)
+        db.commit()
+        task_id = task.id
+    finally:
+        db.close()
+
+    with TestClient(app) as client:
+        response = client.get("/tasks")
+
+    assert response.status_code == 200
+    assert "后台任务已中断" in response.text
+
+    db = SessionLocal()
+    try:
+        refreshed = db.query(PRReviewTask).filter(PRReviewTask.id == task_id).first()
+        assert refreshed.status == "FAILED"
+        assert refreshed.error_type in {"STALE_TASK", "SERVER_RESTART"}
+    finally:
+        db.close()
 
 
 def test_ui_uses_lighter_cockpit_theme():
@@ -21,18 +117,41 @@ def test_ui_uses_lighter_cockpit_theme():
     assert "--cockpit-card: #FFFFFF;" in cockpit_css
 
 
-def test_home_page_shows_golden_evaluation_metrics():
+def test_home_page_is_minimal_review_entry():
     with TestClient(app) as client:
         response = client.get("/")
 
     assert response.status_code == 200
+    assert "AI Review Cockpit" in response.text
+    assert "输入 GitHub PR 链接，生成低噪声、可解释的 Review 报告" in response.text
+    assert "GitHub PR 链接" in response.text
+    assert "GitHub Token（可选）" in response.text
+    assert "自动回写 GitHub 评论" in response.text
+    assert "开始评审" in response.text
+    assert "Changed Lines" in response.text
+    assert "Evidence Chain" in response.text
+    assert "Review Decision" in response.text
     assert "Golden Evaluation" in response.text
-    assert "Precision" in response.text
-    assert "Recall" in response.text
-    assert "False Positives" in response.text
-    assert "20 cases" in response.text
-    assert "Open Evaluation Dashboard" in response.text
-    assert "Try public PR sample" in response.text
+
+    assert "AI Runtime" not in response.text
+    assert "Live Preview" not in response.text
+    assert "工作流程" not in response.text
+    assert "为什么不是普通 AI Review" not in response.text
+
+
+def test_about_page_contains_product_explanations():
+    with TestClient(app) as client:
+        response = client.get("/about")
+
+    assert response.status_code == 200
+    assert "为什么不是普通 AI Review" in response.text
+    assert "工作流程" in response.text
+    assert "Changed Lines" in response.text
+    assert "Risk-Aware Routing" in response.text
+    assert "Confidence Gate" in response.text
+    assert "Evidence Chain" in response.text
+    assert "Review Decision" in response.text
+    assert "未来扩展方向" in response.text
 
 
 def test_golden_evaluation_api_returns_metrics():
@@ -66,20 +185,12 @@ def test_evaluation_page_shows_rule_metrics_and_gate_comparison():
         response = client.get("/evaluation")
 
     assert response.status_code == 200
-    assert "评测看板" in response.text
-    assert "普通 diff-to-LLM 基线" in response.text
-    assert "候选建议数" in response.text
-    assert "证据链保留率" in response.text
-    assert "无效模型输出" in response.text
-    assert "合成黄金用例" in response.text
-    assert "真实 PR 回放" in response.text
-    assert "规则级质量" in response.text
+    assert "Golden Evaluation" in response.text
     assert "S005" in response.text
-    assert "20 个" in response.text
     assert "localtunnel/localtunnel#339" in response.text
 
 
-def test_report_page_shows_cockpit_vs_plain_llm_gate():
+def test_report_page_prioritizes_decision_and_collapses_details():
     db = SessionLocal()
     try:
         task = PRReviewTask(
@@ -89,6 +200,7 @@ def test_report_page_shows_cockpit_vs_plain_llm_gate():
             pr_url="https://github.com/demo/repo/pull/1",
             status="DONE",
             risk_level="LOW",
+            summary="本次 PR 主要调整接口参数校验。",
             raw_finding_count=10,
             deduped_finding_count=6,
             visible_finding_count=4,
@@ -105,11 +217,16 @@ def test_report_page_shows_cockpit_vs_plain_llm_gate():
         response = client.get(f"/tasks/{task_id}/report")
 
     assert response.status_code == 200
-    assert "Cockpit Quality Gate" in response.text
-    assert "Plain diff-to-LLM" in response.text
-    assert "10 raw" in response.text
-    assert "3 invalid" in response.text
-    assert "2 comment-ready" in response.text
+    assert "Risk Level" in response.text
+    assert "Merge Decision" in response.text
+    assert "Findings" in response.text
+    assert "GitHub Ready" in response.text
+    assert "PR Summary" in response.text
+    assert "本次 PR 主要调整接口参数校验。" in response.text
+    assert 'id="fileRiskMapCollapse" class="collapse"' in response.text
+    assert 'id="pipelineCollapse" class="collapse"' in response.text
+    assert "commentPreviewPanel" in response.text
+    assert "data-preview-url" in response.text
 
     with TestClient(app) as client:
         api_response = client.get(f"/api/tasks/{task_id}/report")
@@ -118,7 +235,7 @@ def test_report_page_shows_cockpit_vs_plain_llm_gate():
     assert api_response.json()["invalid_finding_count"] == 3
 
 
-def test_report_page_highlights_changed_line_evidence():
+def test_report_page_shows_high_findings_and_collapses_medium_low_by_default():
     db = SessionLocal()
     try:
         task = PRReviewTask(
@@ -128,15 +245,15 @@ def test_report_page_highlights_changed_line_evidence():
             pr_url="https://github.com/demo/repo/pull/2",
             status="DONE",
             risk_level="HIGH",
-            raw_finding_count=1,
-            deduped_finding_count=1,
-            visible_finding_count=1,
+            raw_finding_count=2,
+            deduped_finding_count=2,
+            visible_finding_count=2,
             github_ready_count=1,
         )
         db.add(task)
         db.commit()
         db.refresh(task)
-        finding = PRReviewFinding(
+        high = PRReviewFinding(
             task_id=task.id,
             file_path="app/service.py",
             line_number=42,
@@ -156,7 +273,18 @@ def test_report_page_highlights_changed_line_evidence():
                 },
             ]),
         )
-        db.add(finding)
+        medium = PRReviewFinding(
+            task_id=task.id,
+            file_path="app/service.py",
+            line_number=51,
+            finding_type="testing",
+            severity="medium",
+            title="Missing tests for changed behavior",
+            reason="The changed service path has no matching tests.",
+            suggestion="Add regression tests.",
+            confidence=0.66,
+        )
+        db.add_all([high, medium])
         db.commit()
         task_id = task.id
     finally:
@@ -166,9 +294,10 @@ def test_report_page_highlights_changed_line_evidence():
         response = client.get(f"/tasks/{task_id}/report")
 
     assert response.status_code == 200
-    assert "Changed-line Evidence" in response.text
+    assert 'id="collapse-high" class="collapse show"' in response.text
+    assert 'id="collapse-medium" class="collapse"' in response.text
+    assert "Missing null check before dereference" in response.text
+    assert "Evidence Chain" in response.text
     assert "return user.name" in response.text
     assert "Confidence Reason" in response.text
     assert "AI finding anchored to changed-line evidence" in response.text
-    assert "Review Source" in response.text
-    assert "ai_file" in response.text

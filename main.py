@@ -1,5 +1,7 @@
 import uvicorn
+from inspect import signature
 from functools import lru_cache
+from datetime import datetime, timedelta
 from contextlib import asynccontextmanager
 from fastapi import FastAPI, Request
 from fastapi.responses import HTMLResponse, RedirectResponse
@@ -16,9 +18,54 @@ from app.routers import evaluation, tasks, reports
 from app.system_status import build_system_status
 
 
+ACTIVE_TASK_STATUSES = {
+    "PENDING",
+    "FETCHING_PR",
+    "BUILDING_CONTEXT",
+    "STATIC_SCAN",
+    "AI_PR_SUMMARY",
+    "AI_FILE_REVIEW",
+    "AI_CROSS_FILE",
+    "MERGING_RESULTS",
+    "GENERATING_REPORT",
+}
+
+
+def mark_stale_active_tasks_failed(db, *, force: bool = False, max_age_minutes: int = 30):
+    cutoff = datetime.utcnow() - timedelta(minutes=max_age_minutes)
+    query = db.query(PRReviewTask).filter(PRReviewTask.status.in_(ACTIVE_TASK_STATUSES))
+    if not force:
+        query = query.filter(PRReviewTask.updated_at < cutoff)
+
+    count = 0
+    for task in query.all():
+        task.status = "FAILED"
+        task.progress = task.progress or 0
+        task.error_type = "SERVER_RESTART" if force else "STALE_TASK"
+        task.error_message = (
+            "服务重启导致后台任务中断，请重新提交评审。"
+            if force
+            else "后台任务已中断或超时，请重新提交评审。"
+        )
+        count += 1
+    if count:
+        db.commit()
+    return count
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     init_db()
+
+    # Background asyncio tasks do not survive process restarts.
+    db = SessionLocal()
+    try:
+        mark_stale_active_tasks_failed(db, force=True)
+    except Exception:
+        db.rollback()
+    finally:
+        db.close()
+
     yield
 
 
@@ -41,6 +88,16 @@ app.include_router(evaluation.router)
 templates = Jinja2Templates(directory="templates")
 import json
 templates.env.filters["from_json"] = lambda s: json.loads(s) if s else []
+_REQUEST_FIRST_TEMPLATE_RESPONSE = "request" in signature(templates.TemplateResponse).parameters
+
+
+def render_template(request: Request, name: str, context: dict):
+    """Render templates across old and new Starlette TemplateResponse signatures."""
+    context = dict(context)
+    context.setdefault("request", request)
+    if _REQUEST_FIRST_TEMPLATE_RESPONSE:
+        return templates.TemplateResponse(request, name, context)
+    return templates.TemplateResponse(name, context)
 
 
 @lru_cache(maxsize=1)
@@ -55,12 +112,16 @@ def cached_real_pr_replay_evaluation():
 
 @app.get("/", response_class=HTMLResponse)
 def index(request: Request):
-    return templates.TemplateResponse("index.html", {
-        "request": request,
+    return render_template(request, "index.html", {
         "golden_eval": cached_golden_evaluation(),
         "real_pr_replay": cached_real_pr_replay_evaluation(),
         "system_status": build_system_status(),
     })
+
+
+@app.get("/about", response_class=HTMLResponse)
+def about_page(request: Request):
+    return render_template(request, "about.html", {})
 
 
 @app.get("/api/system/status")
@@ -74,8 +135,7 @@ def evaluation_page(request: Request):
     real_pr_report = cached_real_pr_replay_evaluation()
     ordinary_baseline_count = report.expected_total + report.false_positive_count
     gate_filtered_count = max(0, ordinary_baseline_count - report.visible_expected_count)
-    return templates.TemplateResponse("evaluation.html", {
-        "request": request,
+    return render_template(request, "evaluation.html", {
         "golden_eval": report,
         "real_pr_replay": real_pr_report,
         "ordinary_baseline_count": ordinary_baseline_count,
@@ -87,6 +147,7 @@ def evaluation_page(request: Request):
 def task_history(request: Request, page: int = 1, q: str = "", status: str = ""):
     db = SessionLocal()
     try:
+        mark_stale_active_tasks_failed(db)
         query = db.query(PRReviewTask)
         if q:
             query = query.filter(PRReviewTask.pr_url.ilike(f"%{q}%"))
@@ -105,8 +166,7 @@ def task_history(request: Request, page: int = 1, q: str = "", status: str = "")
                      "MERGING_RESULTS", "GENERATING_REPORT", "COMMENTED",
                      "COMMENT_UPDATED", "COMMENT_FAILED", "DRY_RUN"]
 
-        return templates.TemplateResponse("task_history.html", {
-            "request": request,
+        return render_template(request, "task_history.html", {
             "tasks": tasks,
             "total": total,
             "page": page,
@@ -122,7 +182,7 @@ def task_history(request: Request, page: int = 1, q: str = "", status: str = "")
 @app.get("/rules", response_class=HTMLResponse)
 def rules_page(request: Request):
     rules = get_rule_catalog()
-    return templates.TemplateResponse("rules.html", {"request": request, "rules": rules})
+    return render_template(request, "rules.html", {"rules": rules})
 
 
 @app.get("/tasks/{task_id}", response_class=HTMLResponse)
@@ -132,8 +192,7 @@ def task_progress(request: Request, task_id: int):
         task = db.query(PRReviewTask).filter(PRReviewTask.id == task_id).first()
         if not task:
             return HTMLResponse("Task not found", status_code=404)
-        return templates.TemplateResponse("task_progress.html", {
-            "request": request,
+        return render_template(request, "task_progress.html", {
             "task": task,
         })
     finally:
@@ -196,8 +255,7 @@ def view_report(request: Request, task_id: int):
             review_decision = "Ready to merge"
             decision_reason = "未发现高置信阻塞问题"
 
-        return templates.TemplateResponse("report.html", {
-            "request": request,
+        return render_template(request, "report.html", {
             "task": task,
             "findings": findings,
             "files": files,

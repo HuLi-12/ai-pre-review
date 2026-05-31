@@ -208,12 +208,28 @@ class ReviewEngine:
             return "NETWORK_ERROR"
         if isinstance(error, httpx.HTTPStatusError):
             status = error.response.status_code
+            message = ""
+            try:
+                message = str(error.response.json().get("message", ""))
+            except Exception:
+                message = getattr(error.response, "text", "") or ""
+            message_lower = message.lower()
             if status == 401:
                 return "GITHUB_AUTH_ERROR"
             if status == 403:
-                return "GITHUB_RATE_LIMIT"
+                remaining = error.response.headers.get("X-RateLimit-Remaining")
+                if remaining == "0" or "rate limit" in message_lower:
+                    return "GITHUB_RATE_LIMIT"
+                if (
+                    "resource not accessible" in message_lower
+                    or "permission" in message_lower
+                    or "must have" in message_lower
+                    or "forbidden" in message_lower
+                ):
+                    return "GITHUB_PERMISSION_ERROR"
+                return "GITHUB_FORBIDDEN"
             if status == 404:
-                return "GITHUB_NOT_FOUND"
+                return "GITHUB_NOT_FOUND_OR_PRIVATE"
             return "GITHUB_API_ERROR"
         if isinstance(error, httpx.RequestError):
             return "NETWORK_ERROR"

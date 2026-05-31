@@ -2,6 +2,7 @@ from app.review_engine import ReviewEngine
 from app.database import SessionLocal
 from app.models import PRReviewTask
 from app.static_scanner import RuleFinding
+import httpx
 
 
 def test_s015_project_test_gap_survives_merge_filter():
@@ -194,3 +195,36 @@ def test_review_engine_reuses_latest_comment_id_for_same_pr():
         assert engine._find_reusable_comment_id(new_task, db) == 98765
     finally:
         db.close()
+
+
+def _http_status_error(status_code, message="", headers=None):
+    request = httpx.Request("GET", "https://api.github.com/repos/demo/repo/pulls/1")
+    response = httpx.Response(
+        status_code,
+        request=request,
+        headers=headers or {},
+        json={"message": message} if message else None,
+    )
+    return httpx.HTTPStatusError("github error", request=request, response=response)
+
+
+def test_categorize_github_403_rate_limit():
+    error = _http_status_error(
+        403,
+        "API rate limit exceeded",
+        headers={"X-RateLimit-Remaining": "0"},
+    )
+
+    assert ReviewEngine._categorize_error(error, "FETCHING_PR") == "GITHUB_RATE_LIMIT"
+
+
+def test_categorize_github_403_permission_error():
+    error = _http_status_error(403, "Resource not accessible by integration")
+
+    assert ReviewEngine._categorize_error(error, "COMMENT_FAILED") == "GITHUB_PERMISSION_ERROR"
+
+
+def test_categorize_github_404_private_or_missing_repo():
+    error = _http_status_error(404, "Not Found")
+
+    assert ReviewEngine._categorize_error(error, "FETCHING_PR") == "GITHUB_NOT_FOUND_OR_PRIVATE"

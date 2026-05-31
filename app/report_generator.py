@@ -75,7 +75,7 @@ class ReportGenerator:
         # One-line summary
         one_line = summary.get("one_line_summary", "")
         if one_line:
-            parts.append(f"## AI Review Summary\n{one_line}\n")
+            parts.append(f"## AI Review 摘要\n{one_line}\n")
 
         # Module changes
         module_changes = summary.get("module_changes", {})
@@ -183,7 +183,7 @@ class ReportGenerator:
 
         # Evidence summary
         if high_confidence:
-            parts.append("### Evidence Summary\n")
+            parts.append("### 证据摘要\n")
             for fd in high_confidence[:5]:
                 file_path = fd.get("file", "")
                 title = fd.get("title", "")
