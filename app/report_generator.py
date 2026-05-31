@@ -133,7 +133,7 @@ class ReportGenerator:
 
     @staticmethod
     def generate_github_comment(report: Report) -> str:
-        """Generate a concise GitHub PR comment (high-confidence findings only)."""
+        """Generate a concise GitHub PR comment (github_ready findings only)."""
         parts = [ReportGenerator.COMMENT_MARKER]
         parts.append("## 🤖 AI Review Cockpit\n")
 
@@ -142,9 +142,20 @@ class ReportGenerator:
             parts.append("未发现明显问题。\n")
             return "\n".join(parts)
 
+        # Flatten and filter to github_ready findings
+        all_findings = []
+        for sev_list in report.findings_by_severity.values():
+            all_findings.extend(sev_list)
+        github_ready = [f for f in all_findings if f.get("github_ready", False)]
+
+        if not github_ready:
+            parts.append(f"本次评审共发现 {total} 个问题，但均未达到 GitHub 评论置信标准。\n")
+            parts.append("*完整报告请查看 AI Review Cockpit。*\n")
+            return "\n".join(parts)
+
         parts.append(f"**风险等级:** `{report.risk_level}`")
         parts.append(f"**合并建议:** {report.merge_suggestion}")
-        parts.append(f"**共发现:** {total} 个问题\n")
+        parts.append(f"**共发现:** {total} 个问题（{len(github_ready)} 个达到展示标准）\n")
 
         # Summary
         if report.key_focus_points:
@@ -153,13 +164,8 @@ class ReportGenerator:
                 parts.append(f"- {p}")
             parts.append("")
 
-        # High severity issues (suitable for GitHub comment)
-        high_confidence = []
-        for severity in ("critical", "high"):
-            for fd in report.findings_by_severity.get(severity, []):
-                confidence = fd.get("confidence", 0) or 0
-                if confidence >= 0.70:  # Only high confidence for GitHub
-                    high_confidence.append(fd)
+        # High severity issues (github_ready filtered)
+        high_confidence = [f for f in github_ready if f.get("severity") in ("critical", "high")]
 
         if high_confidence:
             parts.append("### 高风险问题\n")
@@ -186,12 +192,11 @@ class ReportGenerator:
                     parts.append(f"- **{title}** (`{file_path}`): {reason[:120]}")
             parts.append("")
 
-        # Medium suggestions (summarized)
-        medium = report.findings_by_severity.get("medium", [])
-        high_conf_medium = [f for f in medium if (f.get("confidence", 0) or 0) >= 0.70]
-        if high_conf_medium:
+        # Medium/low suggestions that are github_ready
+        rest = [f for f in github_ready if f.get("severity") not in ("critical", "high")]
+        if rest:
             parts.append("### 改进建议\n")
-            for fd in high_conf_medium[:5]:
+            for fd in rest[:5]:
                 parts.append(f"- `{fd.get('file', '')}` — {fd.get('title', '')}")
             parts.append("")
 

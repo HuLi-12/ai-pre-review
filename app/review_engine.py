@@ -129,23 +129,35 @@ class ReviewEngine:
 
             # ---- Stage 7: Auto Comment to GitHub (if enabled) ----
             if task.auto_comment and merged:
-                try:
-                    comment = self.report_gen.generate_github_comment(report)
-                    if not task.comment_id:
-                        task.comment_id = self._find_reusable_comment_id(task, db)
-                    if task.comment_id:
-                        ok = self.github.update_pr_comment(owner, repo, task.comment_id, comment)
-                        task.current_step = "COMMENT_UPDATED" if ok else "COMMENT_FAILED"
-                    else:
-                        comment_id = self.github.create_pr_comment(owner, repo, number, comment)
-                        if comment_id:
-                            task.comment_id = comment_id
-                            task.current_step = "COMMENTED"
-                        else:
-                            task.current_step = "COMMENT_FAILED"
+                if task.dry_run:
+                    task.current_step = "DRY_RUN"
                     db.commit()
-                except Exception as e:
-                    print(f"Failed to post GitHub comment: {e}")
+                else:
+                    try:
+                        comment = self.report_gen.generate_github_comment(report)
+
+                        # Marker-based lookup (most robust — survives comment deletion)
+                        if not task.comment_id:
+                            task.comment_id = self.github.find_pr_comment_by_marker(
+                                owner, repo, number, ReportGenerator.COMMENT_MARKER
+                            )
+                        # Fallback: DB-based lookup (previous task's comment_id for same PR)
+                        if not task.comment_id:
+                            task.comment_id = self._find_reusable_comment_id(task, db)
+
+                        if task.comment_id:
+                            ok = self.github.update_pr_comment(owner, repo, task.comment_id, comment)
+                            task.current_step = "COMMENT_UPDATED" if ok else "COMMENT_FAILED"
+                        else:
+                            comment_id = self.github.create_pr_comment(owner, repo, number, comment)
+                            if comment_id:
+                                task.comment_id = comment_id
+                                task.current_step = "COMMENTED"
+                            else:
+                                task.current_step = "COMMENT_FAILED"
+                        db.commit()
+                    except Exception as e:
+                        print(f"Failed to post GitHub comment: {e}")
 
         except Exception as e:
             task.status = "FAILED"
@@ -654,14 +666,19 @@ class ReviewEngine:
         # ---- Confidence threshold filtering ----
         filtered = [f for f in final_findings if should_show_in_report(f.get("confidence", 0) or 0)]
 
+        # Mark github_ready flag for each finding (used by report_generator for GitHub comments)
+        for f in filtered:
+            f["github_ready"] = should_comment_to_github(
+                f.get("confidence", 0) or 0,
+                f.get("severity", "low"),
+            )
+
         # Save pipeline counts for cockpit metrics
         self._pipeline_counts = {
             "raw": len(merged) + invalid_ai_count,
             "deduped": len(final_findings),
             "visible": len(filtered),
-            "github_ready": sum(1 for f in filtered
-                                if should_comment_to_github(f.get("confidence", 0) or 0,
-                                                            f.get("severity", "low"))),
+            "github_ready": sum(1 for f in filtered if f["github_ready"]),
             "invalid": invalid_ai_count,
         }
 

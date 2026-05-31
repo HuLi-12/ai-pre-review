@@ -3,6 +3,7 @@ from sqlalchemy.orm import Session
 
 from app.database import get_db
 from app.models import PRReviewTask, PRChangedFile, PRReviewFinding, PRReviewFeedback
+from app.report_generator import Report, ReportGenerator
 from app.schemas import ReportResponse, FindingItem, FeedbackRequest
 
 router = APIRouter(prefix="/api", tags=["reports"])
@@ -163,3 +164,60 @@ def submit_feedback(finding_id: int, req: FeedbackRequest, db: Session = Depends
 
     db.commit()
     return {"status": "ok"}
+
+
+@router.get("/tasks/{task_id}/comment-preview")
+def preview_comment(task_id: int, db: Session = Depends(get_db)):
+    """Preview the GitHub comment that would be posted (safe, no side effects)."""
+    task = db.query(PRReviewTask).filter(PRReviewTask.id == task_id).first()
+    if not task:
+        raise HTTPException(status_code=404, detail="Task not found")
+    if task.status != "DONE":
+        raise HTTPException(status_code=400, detail=f"Task not completed, status: {task.status}")
+
+    findings = db.query(PRReviewFinding).filter(
+        PRReviewFinding.task_id == task_id
+    ).all()
+
+    # Reconstruct a Report from DB findings
+    by_severity = {"critical": [], "high": [], "medium": [], "low": []}
+    for f in findings:
+        raw_confidence = float(f.confidence) if f.confidence else 0
+        fd = {
+            "file": f.file_path,
+            "line": f.line_number,
+            "type": f.finding_type,
+            "severity": (f.severity or "low").lower(),
+            "title": f.title,
+            "reason": f.reason or "",
+            "suggestion": f.suggestion or "",
+            "confidence": raw_confidence,
+            "github_ready": (
+                raw_confidence >= 0.80
+                or (f.severity in ("critical", "high") and raw_confidence >= 0.70)
+            ),
+        }
+        sev = fd["severity"]
+        if sev in by_severity:
+            by_severity[sev].append(fd)
+
+    report = Report(
+        risk_level=task.risk_level or "LOW",
+        merge_suggestion="",
+        markdown_summary=task.summary or "",
+        findings_by_severity=by_severity,
+    )
+
+    comment_markdown = ReportGenerator.generate_github_comment(report)
+    github_ready_count = sum(1 for f in findings if (
+        (f.confidence or 0) >= 0.80
+        or (f.severity in ("critical", "high") and (f.confidence or 0) >= 0.70)
+    ))
+
+    return {
+        "task_id": task_id,
+        "comment_markdown": comment_markdown,
+        "github_ready_count": github_ready_count,
+        "total_findings": len(findings),
+        "dry_run": bool(task.dry_run),
+    }

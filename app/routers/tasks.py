@@ -26,6 +26,7 @@ async def create_task(req: CreateTaskRequest, db: Session = Depends(get_db)):
         pr_number=number,
         pr_url=req.pr_url,
         auto_comment=req.auto_comment,
+        dry_run=1 if req.dry_run else 0,
         status="PENDING",
     )
     db.add(task)

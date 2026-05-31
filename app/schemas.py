@@ -6,6 +6,7 @@ class CreateTaskRequest(BaseModel):
     pr_url: str = Field(..., description="GitHub PR URL")
     github_token: Optional[str] = Field(None, description="GitHub Token, 不传则使用全局配置")
     auto_comment: bool = Field(False, description="是否自动评论到 GitHub")
+    dry_run: bool = Field(False, description="安全预览模式，不实际发布到 GitHub")
 
 
 class TaskResponse(BaseModel):

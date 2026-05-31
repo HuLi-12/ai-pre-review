@@ -102,7 +102,7 @@ def task_history(request: Request, page: int = 1, q: str = "", status: str = "")
         statuses = ["PENDING", "DONE", "FAILED", "FETCHING_PR", "BUILDING_CONTEXT",
                      "STATIC_SCAN", "AI_PR_SUMMARY", "AI_FILE_REVIEW", "AI_CROSS_FILE",
                      "MERGING_RESULTS", "GENERATING_REPORT", "COMMENTED",
-                     "COMMENT_UPDATED", "COMMENT_FAILED"]
+                     "COMMENT_UPDATED", "COMMENT_FAILED", "DRY_RUN"]
 
         return templates.TemplateResponse("task_history.html", {
             "request": request,
