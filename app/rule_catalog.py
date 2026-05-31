@@ -157,6 +157,26 @@ def get_rule_by_id(rule_id: str) -> dict:
     return {}
 
 
+def get_rule_suggestion(rule_id: str) -> str:
+    """Build an actionable suggestion from rule catalog metadata."""
+    rule = get_rule_by_id(rule_id)
+    if not rule:
+        return "根据命中的 Static Rule 修复对应风险，并补充必要的回归测试。"
+
+    rule_name = rule.get("name") or rule_id
+    description = (rule.get("description") or "").strip()
+    good_code = (rule.get("good_code") or "").strip()
+
+    if good_code:
+        return (
+            f"按 Static Rule {rule_id}（{rule_name}）修复；"
+            f"参考推荐写法：\n{good_code}"
+        )
+    if description:
+        return f"按 Static Rule {rule_id}（{rule_name}）修复：{description}"
+    return f"按 Static Rule {rule_id}（{rule_name}）修复，并补充必要验证。"
+
+
 def get_rules_by_detection(detection: str) -> list:
     """Filter rules by detection method: \"static\", \"ai\", or \"static+ai\"."""
     return [dict(r) for r in RULE_CATALOG if r["detection"] == detection]

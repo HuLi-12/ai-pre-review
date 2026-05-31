@@ -14,6 +14,7 @@ from app.database import init_db, get_db, SessionLocal
 from app.golden_evaluation import run_golden_evaluation, run_real_pr_replay_evaluation
 from app.models import PRReviewTask, PRChangedFile, PRReviewFinding
 from app.rule_catalog import get_rule_catalog
+from app.finding_suggestions import hydrate_missing_suggestions
 from app.routers import evaluation, tasks, reports
 from app.system_status import build_system_status
 
@@ -214,6 +215,7 @@ def view_report(request: Request, task_id: int):
         findings = db.query(PRReviewFinding).filter(
             PRReviewFinding.task_id == task_id
         ).all()
+        hydrate_missing_suggestions(findings)
         findings.sort(
             key=lambda f: (SEVERITY_RANK.get(f.severity.lower() if f.severity else "low", 0),
                            float(f.confidence) if f.confidence else 0),

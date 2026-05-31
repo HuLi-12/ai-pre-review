@@ -88,3 +88,25 @@ def test_github_comment_includes_evidence_summary():
     assert "Unsafe DELETE" in comment
     assert "DELETE without WHERE" in comment
     assert "S014" in comment
+
+
+def test_github_comment_includes_actionable_suggestion_for_ready_findings():
+    """GitHub-ready findings should include the concrete fix suggestion, not only the issue title."""
+    findings = {
+        "critical": [
+            {"file": "src/db.py", "line": 20, "severity": "critical",
+             "title": "Unsafe DELETE", "reason": "DELETE without WHERE clause",
+             "suggestion": "Add a WHERE clause scoped to the target user id.", "confidence": 0.85,
+             "github_ready": True, "type": "S014"},
+        ],
+        "high": [],
+        "medium": [],
+        "low": [],
+    }
+    report = Report(risk_level="CRITICAL", merge_suggestion="block merge",
+                    key_focus_points=["Unsafe DELETE"], findings_by_severity=findings)
+
+    comment = ReportGenerator.generate_github_comment(report)
+
+    assert "建议" in comment
+    assert "Add a WHERE clause scoped to the target user id." in comment

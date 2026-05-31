@@ -176,9 +176,12 @@ class ReportGenerator:
                 loc = f"`{file_path}`" + (f":{line}" if line else "")
                 rule = fd.get("type", "")
                 confidence = fd.get("confidence", 0)
+                suggestion = fd.get("suggestion", "")
                 rule_tag = f" [{rule}]" if rule else ""
                 conf_tag = f" (conf: {int(float(confidence)*100)}%)" if confidence else ""
                 parts.append(f"{i}. {loc} — {title}{rule_tag}{conf_tag}")
+                if suggestion:
+                    parts.append(f"   - 建议: {suggestion}")
             parts.append("")
 
         # Evidence summary
@@ -198,6 +201,8 @@ class ReportGenerator:
             parts.append("### 改进建议\n")
             for fd in rest[:5]:
                 parts.append(f"- `{fd.get('file', '')}` — {fd.get('title', '')}")
+                if fd.get("suggestion"):
+                    parts.append(f"  - 建议: {fd['suggestion']}")
             parts.append("")
 
         parts.append("---")

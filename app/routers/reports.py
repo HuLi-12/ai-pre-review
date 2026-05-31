@@ -5,6 +5,7 @@ from app.database import get_db
 from app.models import PRReviewTask, PRChangedFile, PRReviewFinding, PRReviewFeedback
 from app.report_generator import Report, ReportGenerator
 from app.schemas import ReportResponse, FindingItem, FeedbackRequest
+from app.finding_suggestions import hydrate_missing_suggestions
 
 router = APIRouter(prefix="/api", tags=["reports"])
 
@@ -26,6 +27,7 @@ def get_report(task_id: int, db: Session = Depends(get_db)):
     findings = db.query(PRReviewFinding).filter(
         PRReviewFinding.task_id == task_id
     ).all()
+    hydrate_missing_suggestions(findings)
 
     # Sort by severity rank (not string), then confidence desc
     findings.sort(
@@ -118,6 +120,7 @@ def get_file_findings(task_id: int, file_id: int, db: Session = Depends(get_db))
         PRReviewFinding.task_id == task_id,
         PRReviewFinding.file_id == file_id,
     ).all()
+    hydrate_missing_suggestions(findings)
 
     findings.sort(
         key=lambda f: (SEVERITY_RANK.get(f.severity.lower() if f.severity else "low", 0),
@@ -178,6 +181,7 @@ def preview_comment(task_id: int, db: Session = Depends(get_db)):
     findings = db.query(PRReviewFinding).filter(
         PRReviewFinding.task_id == task_id
     ).all()
+    hydrate_missing_suggestions(findings)
 
     # Reconstruct a Report from DB findings
     by_severity = {"critical": [], "high": [], "medium": [], "low": []}

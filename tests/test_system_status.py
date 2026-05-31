@@ -71,3 +71,11 @@ def test_ai_prompts_do_not_force_fit_findings_to_static_rules():
     assert '"source": "ai_cross"' in prompt
     assert '"rule_id": null' in prompt
     assert '"category"' in prompt
+
+
+def test_ai_prompts_require_actionable_non_generic_suggestions():
+    prompt = AIClient.FILE_REVIEW_SYSTEM_PROMPT + AIClient.CROSS_FILE_SYSTEM_PROMPT
+
+    assert "suggestion must be concrete and actionable" in prompt
+    assert "Tie the suggestion to the cited changed line" in prompt
+    assert "Do not use generic suggestions" in prompt

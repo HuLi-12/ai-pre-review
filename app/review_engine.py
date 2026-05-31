@@ -16,6 +16,7 @@ from app.models import PRReviewTask, PRChangedFile, PRReviewFinding
 from app.report_generator import ReportGenerator
 from app.risk_scorer import FileRiskScorer
 from app.confidence_calculator import calculate_confidence, should_show_in_report, should_comment_to_github
+from app.rule_catalog import get_rule_suggestion
 
 
 @dataclass
@@ -701,7 +702,7 @@ class ReviewEngine:
                     "severity": rf.severity,
                     "title": rf.message,
                     "reason": rf.message,
-                    "suggestion": "",
+                    "suggestion": get_rule_suggestion(rf.rule_id),
                     "confidence": 0.0,
                     "source": "static_rule",
                     "line_content": rf.line_content,

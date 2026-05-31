@@ -46,6 +46,9 @@ def test_static_rule_merge_preserves_code_snippet_for_evidence():
     assert len(merged) == 1
     assert merged[0]["line_content"] == 'password = "secret123"'
     assert merged[0]["confidence_reason"] == "Deterministic static rule match with changed-line evidence"
+    assert merged[0]["suggestion"]
+    assert "os.getenv" in merged[0]["suggestion"]
+    assert "S005" in merged[0]["suggestion"]
 
 
 def test_ai_file_finding_without_changed_line_evidence_is_filtered():
@@ -196,6 +199,28 @@ def test_static_rule_finding_carries_rule_source_metadata():
     assert merged[0]["rule_id"] == "S005"
     assert merged[0]["category"] == "security"
     assert merged[0]["type"] == "S005"
+
+
+def test_project_test_gap_static_rule_includes_actionable_test_suggestion():
+    engine = ReviewEngine.__new__(ReviewEngine)
+    findings = {
+        "(project)": [
+            RuleFinding(
+                file_path="(project-wide)",
+                line_number=0,
+                rule_id="S015",
+                severity="medium",
+                message="Core source files changed but no test files were updated - consider adding tests",
+            )
+        ]
+    }
+
+    merged = engine._merge_findings([], [], findings)
+
+    assert len(merged) == 1
+    assert "S015" in merged[0]["suggestion"]
+    assert "test" in merged[0]["suggestion"].lower()
+    assert "tests/test_service.py" in merged[0]["suggestion"]
 
 
 def test_cross_file_finding_carries_open_ai_source_metadata():

@@ -374,3 +374,84 @@ def test_report_page_distinguishes_static_and_ai_finding_sources():
     assert response.status_code == 200
     assert "Static Rule S005" in response.text
     assert "AI File Review correctness" in response.text
+
+
+def test_report_page_hydrates_missing_static_rule_suggestion():
+    db = SessionLocal()
+    try:
+        task = PRReviewTask(
+            repo_owner="demo",
+            repo_name="repo",
+            pr_number=407,
+            pr_url="https://github.com/demo/repo/pull/407",
+            status="DONE",
+            risk_level="CRITICAL",
+            raw_finding_count=1,
+            deduped_finding_count=1,
+            visible_finding_count=1,
+            github_ready_count=1,
+        )
+        db.add(task)
+        db.commit()
+        db.add(PRReviewFinding(
+            task_id=task.id,
+            file_path="app/auth.py",
+            line_number=12,
+            finding_type="S005",
+            severity="critical",
+            title="Hardcoded password or secret detected",
+            reason="A deterministic static rule matched a changed line.",
+            suggestion="",
+            confidence=0.85,
+        ))
+        db.commit()
+        task_id = task.id
+    finally:
+        db.close()
+
+    with TestClient(app) as client:
+        response = client.get(f"/tasks/{task_id}/report")
+
+    assert response.status_code == 200
+    assert "os.getenv" in response.text
+    assert "Static Rule S005" in response.text
+
+
+def test_comment_preview_hydrates_missing_static_rule_suggestion():
+    db = SessionLocal()
+    try:
+        task = PRReviewTask(
+            repo_owner="demo",
+            repo_name="repo",
+            pr_number=408,
+            pr_url="https://github.com/demo/repo/pull/408",
+            status="DONE",
+            risk_level="CRITICAL",
+            raw_finding_count=1,
+            deduped_finding_count=1,
+            visible_finding_count=1,
+            github_ready_count=1,
+        )
+        db.add(task)
+        db.commit()
+        db.add(PRReviewFinding(
+            task_id=task.id,
+            file_path="app/auth.py",
+            line_number=12,
+            finding_type="S005",
+            severity="critical",
+            title="Hardcoded password or secret detected",
+            reason="A deterministic static rule matched a changed line.",
+            suggestion="",
+            confidence=0.85,
+        ))
+        db.commit()
+        task_id = task.id
+    finally:
+        db.close()
+
+    with TestClient(app) as client:
+        response = client.get(f"/api/tasks/{task_id}/comment-preview")
+
+    assert response.status_code == 200
+    assert "os.getenv" in response.json()["comment_markdown"]

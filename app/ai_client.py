@@ -93,6 +93,9 @@ Output requirements:
 - Do not force-fit a finding into S001-S015.
 - Only output issues with clear evidence
 - Do NOT output generic code style advice
+- Each suggestion must be concrete and actionable: name the exact fix, guard, API call, transaction, validation, or test to add.
+- Tie the suggestion to the cited changed line or affected contract.
+- Do not use generic suggestions such as "review carefully", "fix the issue", or "improve code quality".
 - Low confidence issues should use note level, not blocking
 
 Output JSON format:
@@ -119,6 +122,7 @@ Output JSON format:
 
 You are not limited to the static rule IDs. Static rules are deterministic signals, but your task is to identify semantic, contextual, and cross-file review risks that may not match any predefined rule.
 For each finding, use source = ai_cross, rule_id = null, and a category such as architecture, api_contract, data_flow, data_consistency, reliability, or test. Do not force-fit a finding into S001-S015.
+Each suggestion must be concrete and actionable. Tie the suggestion to the cited changed line or affected contract. Do not use generic suggestions such as "review carefully", "fix the issue", or "improve code quality".
 
 Focus areas:
 1. API parameter/return type changes — are callers updated accordingly?
